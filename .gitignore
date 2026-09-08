@@ -1,0 +1,42 @@
+# Environment and Secrets (CRITICAL: NEVER COMMIT)
+.env
+*.env
+*.env.*
+backend/.env
+frontend/.env
+
+# Python / Backend
+venv/
+env/
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+backend/storage/images/*
+backend/storage/reports/*
+backend/storage/audit/*
+!backend/storage/images/.gitkeep
+!backend/storage/reports/.gitkeep
+!backend/storage/audit/.gitkeep
+
+# Flutter / Dart / Android / iOS
+frontend/.dart_tool/
+frontend/.flutter-plugins
+frontend/.flutter-plugins-dependencies
+frontend/.packages
+frontend/build/
+.pub-cache/
+.pub/
+
+# Android build artifacts
+frontend/android/app/build/
+frontend/android/.gradle/
+frontend/android/local.properties
+frontend/android/*.iml
+
+# IDE & OS files
+.idea/
+.vscode/
+*.iml
+.DS_Store
+Thumbs.db
