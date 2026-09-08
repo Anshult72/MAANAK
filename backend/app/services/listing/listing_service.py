@@ -1,13 +1,14 @@
+from __future__ import annotations
 import ipaddress
 import socket
 from urllib.parse import urlparse
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Tuple
 import httpx
 from app.core.logging import logger
 
 class OnlineListingService:
     @staticmethod
-    def validate_url_security(url_str: str) -> Tuple_Bool_Msg:
+    def validate_url_security(url_str: str) -> Tuple[bool, str]:
         """
         Enforces strict SSRF protection:
         - Must be http or https
@@ -45,8 +46,25 @@ class OnlineListingService:
             raise ValueError(msg)
 
         try:
-            async with httpx.AsyncClient(timeout=10.0, follow_redirects=True) as client:
-                resp = await client.get(safe_url, headers={"User-Agent": "MaanakComplianceBot/1.0"})
+            async with httpx.AsyncClient(timeout=10.0, follow_redirects=False) as client:
+                request_url = safe_url
+                for _ in range(5):
+                    response = await client.get(
+                        request_url,
+                        headers={"User-Agent": "MaanakComplianceBot/1.0"},
+                    )
+                    if not response.is_redirect:
+                        resp = response
+                        break
+                    redirect_url = str(response.next_request.url) if response.next_request else ""
+                    is_safe, message = self.validate_url_security(redirect_url)
+                    if not is_safe:
+                        raise ValueError(f"Unsafe redirect blocked: {message}")
+                    request_url = redirect_url
+                else:
+                    return {"url": safe_url, "status": "Too many redirects"}
+
+                resp.raise_for_status()
                 # Limit content size to 2 MB
                 if len(resp.content) > 2 * 1024 * 1024:
                     return {"url": safe_url, "title": "Listing Preview", "status": "Size exceeded limit"}

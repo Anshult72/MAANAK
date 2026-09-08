@@ -14,6 +14,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
+# Fail image builds early if an import-time error would stop Uvicorn on boot.
+RUN python -c "from app.main import app; assert app"
+
 # Ensure storage directories exist
 RUN mkdir -p storage/images storage/reports storage/audit
 

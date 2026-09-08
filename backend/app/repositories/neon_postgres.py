@@ -52,7 +52,7 @@ class NeonPostgresRepository(
                 "active": user.active, "created_at": user.created_at.isoformat() if user.created_at else None
             }
 
-    async def get_by_id(self, user_id: str) -> Optional[Dict[str, Any]]:
+    async def _get_user_by_id(self, user_id: str) -> Optional[Dict[str, Any]]:
         async with await self._get_session() as session:
             stmt = select(User).where(User.id == user_id)
             res = await session.execute(stmt)
@@ -80,7 +80,7 @@ class NeonPostgresRepository(
             ]
 
     # --- IProductRepository ---
-    async def get_by_id(self, product_id: str) -> Optional[Dict[str, Any]]:
+    async def _get_product_by_id(self, product_id: str) -> Optional[Dict[str, Any]]:
         async with await self._get_session() as session:
             stmt = select(Product).where(Product.id == product_id)
             res = await session.execute(stmt)
@@ -169,27 +169,87 @@ class NeonPostgresRepository(
             await session.commit()
             return inspection_data
 
-    async def get_by_id(self, inspection_id: str) -> Optional[Dict[str, Any]]:
+    async def _get_inspection_by_id(self, inspection_id: str) -> Optional[Dict[str, Any]]:
         async with await self._get_session() as session:
             stmt = select(Inspection).where(Inspection.id == inspection_id)
             res = await session.execute(stmt)
             ins = res.scalar_one_or_none()
             if not ins:
                 return None
+            images = (await session.execute(
+                select(InspectionImage).where(InspectionImage.inspection_id == inspection_id)
+            )).scalars().all()
+            declarations = (await session.execute(
+                select(Declaration).where(Declaration.inspection_id == inspection_id)
+            )).scalars().all()
+            checks = (await session.execute(
+                select(ComplianceCheck).where(ComplianceCheck.inspection_id == inspection_id)
+            )).scalars().all()
+            violations = (await session.execute(
+                select(Violation).where(Violation.inspection_id == inspection_id)
+            )).scalars().all()
             return {
                 "id": ins.id, "inspection_code": ins.inspection_code, "inspector_id": ins.inspector_id,
                 "product_id": ins.product_id, "inspection_type": ins.inspection_type,
-                "location": ins.location, "seller_name": ins.seller_name, "status": ins.status,
-                "score": ins.score, "created_at": ins.created_at.isoformat() if ins.created_at else None,
-                "images": [], "declarations": [], "checks": [], "violations": []
+                "inspection_date": ins.inspection_date.isoformat() if ins.inspection_date else None,
+                "location": ins.location, "seller_name": ins.seller_name, "business_name": ins.business_name,
+                "status": ins.status, "score": ins.score, "package_type": ins.package_type,
+                "package_construction_type": ins.package_construction_type,
+                "calibration_status": ins.calibration_status, "calibration_data": ins.calibration_data,
+                "pdp_data": ins.pdp_data, "applied_rule_version": ins.applied_rule_version,
+                "rule_snapshot": ins.rule_snapshot, "notes": ins.notes,
+                "created_at": ins.created_at.isoformat() if ins.created_at else None,
+                "updated_at": ins.updated_at.isoformat() if ins.updated_at else None,
+                "finalized_at": ins.finalized_at.isoformat() if ins.finalized_at else None,
+                "images": [{
+                    "id": image.id, "inspection_id": image.inspection_id,
+                    "surface_type": image.surface_type, "original_path": image.original_path,
+                    "thumbnail_path": image.thumbnail_path, "width": image.width, "height": image.height,
+                    "mime_type": image.mime_type, "file_size": image.file_size,
+                    "quality_score": image.quality_score, "quality_assessment": image.quality_assessment,
+                    "quality_details": image.quality_details,
+                } for image in images],
+                "declarations": [{
+                    "id": declaration.id, "inspection_id": declaration.inspection_id,
+                    "field_name": declaration.field_name, "ai_value": declaration.ai_value,
+                    "verified_value": declaration.verified_value, "unit": declaration.unit,
+                    "confidence": declaration.confidence, "source_image_id": declaration.source_image_id,
+                    "source_block_id": declaration.source_block_id, "source_text": declaration.source_text,
+                    "bbox": declaration.bbox, "presence_status": declaration.presence_status,
+                    "correctness_status": declaration.correctness_status,
+                    "verification_status": declaration.verification_status,
+                    "provenance": declaration.provenance, "notes": declaration.notes,
+                } for declaration in declarations],
+                "checks": [{
+                    "id": check.id, "inspection_id": check.inspection_id,
+                    "check_type": check.check_type, "field_name": check.field_name,
+                    "input_value": check.input_value, "expected_condition": check.expected_condition,
+                    "result": check.result, "confidence": check.confidence,
+                    "explanation": check.explanation,
+                } for check in checks],
+                "violations": [{
+                    "id": violation.id, "inspection_id": violation.inspection_id,
+                    "type": violation.type, "severity": violation.severity,
+                    "confidence": violation.confidence, "status": violation.status,
+                    "provenance": violation.provenance, "ai_explanation": violation.ai_explanation,
+                    "inspector_comment": violation.inspector_comment,
+                } for violation in violations],
             }
+
+    async def get_by_id(self, entity_id: str) -> Optional[Dict[str, Any]]:
+        """Resolve the shared legacy repository method without method overwrites."""
+        if entity_id.startswith("u-"):
+            return await self._get_user_by_id(entity_id)
+        if entity_id.startswith("prod-"):
+            return await self._get_product_by_id(entity_id)
+        return await self._get_inspection_by_id(entity_id)
 
     async def update(self, inspection_id: str, updates: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         async with await self._get_session() as session:
             stmt = update(Inspection).where(Inspection.id == inspection_id).values(**updates)
             await session.execute(stmt)
             await session.commit()
-            return await self.get_by_id(inspection_id)
+            return await self._get_inspection_by_id(inspection_id)
 
     async def list_inspections(self, inspector_id: Optional[str] = None, status: Optional[str] = None, query: Optional[str] = None) -> List[Dict[str, Any]]:
         async with await self._get_session() as session:
@@ -203,7 +263,11 @@ class NeonPostgresRepository(
             return [
                 {
                     "id": ins.id, "inspection_code": ins.inspection_code, "status": ins.status,
-                    "location": ins.location, "score": ins.score
+                    "inspection_type": ins.inspection_type, "location": ins.location,
+                    "seller_name": ins.seller_name, "business_name": ins.business_name,
+                    "score": ins.score,
+                    "inspection_date": ins.inspection_date.isoformat() if ins.inspection_date else None,
+                    "created_at": ins.created_at.isoformat() if ins.created_at else None,
                 } for ins in inspections
             ]
 
@@ -283,7 +347,7 @@ class NeonPostgresRepository(
             )
             await session.execute(stmt)
             await session.commit()
-            return await self.get_by_id(inspection_id)
+            return await self._get_inspection_by_id(inspection_id)
 
     # --- IRuleRepository ---
     async def list_rules(self, category: Optional[str] = None, active_only: bool = True) -> List[Dict[str, Any]]:
