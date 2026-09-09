@@ -30,10 +30,11 @@ class GroqVisionOcrService(IOcrService):
             encoded_image = base64.b64encode(image_file.read()).decode("ascii")
         mime_type = "image/png" if image_path.lower().endswith(".png") else "image/jpeg"
         prompt = (
-            "Read every visible packaging declaration exactly as printed. "
-            "Include product name, net quantity, MRP, packed/use-by dates, manufacturer/marketer, "
-            "address, customer-care, barcode and origin. Do not infer text not visible. "
-            "Return exactly valid JSON: {\"lines\":[{\"text\":\"visible text\",\"confidence\":0.9}]}."
+            "Perform OCR: read every visible line of text in this image exactly as printed. "
+            "This can be any package surface, so include all visible text; do not decide whether a line is relevant. "
+            "Do not infer or add text that is not visible. "
+            "Return exactly valid JSON: {\"lines\":[{\"text\":\"visible text\",\"confidence\":0.9}]} "
+            "and use an empty lines array only when the image truly has no readable text."
         )
 
         response = None
