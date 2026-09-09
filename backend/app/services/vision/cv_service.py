@@ -74,17 +74,15 @@ class OpenCvVisionService:
         """
         if not crop_path or not os.path.exists(crop_path):
             return {
-                "contrast": 0.88,
-                "sharpness": 0.90,
-                "blur": 280.0,
-                "status": "PASS",
-                "explanation": "Clear text boundaries with strong contrast against background."
+                "contrast": None, "sharpness": None, "blur": None,
+                "status": "UNVERIFIED",
+                "explanation": "No captured image is available for visual legibility analysis."
             }
 
         try:
             img = cv2.imread(crop_path)
             if img is None:
-                return {"contrast": 0.7, "sharpness": 0.7, "status": "PASS", "explanation": "Adequate visual legibility."}
+                return {"contrast": None, "sharpness": None, "blur": None, "status": "UNVERIFIED", "explanation": "Image could not be decoded for visual analysis."}
             gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
             lap_var = cv2.Laplacian(gray, cv2.CV_64F).var()
             contrast = np.std(gray) / 128.0
@@ -99,7 +97,7 @@ class OpenCvVisionService:
             }
         except Exception as e:
             logger.warning(f"Error in evaluate_readability: {e}")
-            return {"contrast": 0.8, "sharpness": 0.8, "status": "PASS", "explanation": "Adequate visual legibility."}
+            return {"contrast": None, "sharpness": None, "blur": None, "status": "UNVERIFIED", "explanation": "Visual analysis failed; retake the image if needed."}
 
     @staticmethod
     def check_placement(bbox: dict, surface_type: str, rule_requirement: str = "PRINCIPAL_DISPLAY_PANEL") -> Dict[str, Any]:

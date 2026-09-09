@@ -287,6 +287,7 @@ class NeonPostgresRepository(
 
     async def save_declarations(self, inspection_id: str, declarations: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         async with await self._get_session() as session:
+            await session.execute(delete(Declaration).where(Declaration.inspection_id == inspection_id))
             for dec_data in declarations:
                 dec = Declaration(**dec_data)
                 session.add(dec)
@@ -302,6 +303,8 @@ class NeonPostgresRepository(
 
     async def save_compliance_results(self, inspection_id: str, checks: List[Dict[str, Any]], violations: List[Dict[str, Any]]) -> None:
         async with await self._get_session() as session:
+            await session.execute(delete(Violation).where(Violation.inspection_id == inspection_id))
+            await session.execute(delete(ComplianceCheck).where(ComplianceCheck.inspection_id == inspection_id))
             for c in checks:
                 check_data = {
                     "id": c.get("id") or str(uuid.uuid4()),

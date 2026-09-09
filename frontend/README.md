@@ -1,17 +1,28 @@
-# maanak_app
+# MAANAK mobile app
 
-A new Flutter project.
+The app connects to the deployed MAANAK API by default:
+`https://maanak-85bh.onrender.com`
 
-## Getting Started
+## Run on an Android phone
 
-This project is a starting point for a Flutter application.
+Connect an Android device with USB debugging enabled, then run:
 
-A few resources to get you started if this is your first Flutter project:
+```powershell
+flutter run
+```
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+## Build a shareable APK
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+```powershell
+flutter build apk --release
+```
+
+The APK is created at `build\\app\\outputs\\flutter-apk\\app-release.apk`.
+
+## Use a local backend instead
+
+Override the API at launch:
+
+```powershell
+flutter run --dart-define=API_BASE_URL=http://YOUR_LAPTOP_IP:8000
+```

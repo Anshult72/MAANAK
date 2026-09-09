@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -19,13 +20,25 @@ import '../../features/online_listing/online_listing_screen.dart';
 import '../../features/rule_management/rule_admin_screen.dart';
 import '../../features/supervisor/supervisor_screen.dart';
 
-final appRouterProvider = Provider<GoRouter>((ref) {
-  final authState = ref.watch(authProvider);
+// Stable navigator keys — survive GoRouter refreshes.
+final rootNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'root');
+final _shellNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'shell');
 
+/// Creates the application [GoRouter].
+///
+/// The router is created ONCE and stored in the widget tree (not inside a
+/// Riverpod Provider) so that Riverpod can never dispose/recreate it.
+/// Auth-driven redirect is re-evaluated via [refreshListenable].
+///
+/// [authNotifier] is bumped externally (from the widget's build method via
+/// ref.listen) whenever [authProvider] changes.
+GoRouter createAppRouter(WidgetRef ref, ValueListenable<int> authNotifier) {
   return GoRouter(
+    navigatorKey: rootNavigatorKey,
     initialLocation: '/dashboard',
+    refreshListenable: authNotifier,
     redirect: (context, state) {
-      final isAuth = authState.isAuthenticated;
+      final isAuth = ref.read(authProvider).isAuthenticated;
       final isLoggingIn = state.matchedLocation == '/login';
 
       if (!isAuth && !isLoggingIn) {
@@ -44,6 +57,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 
       // Bottom Navigation Shell for primary operational tabs
       ShellRoute(
+        navigatorKey: _shellNavigatorKey,
         builder: (context, state, child) {
           return ScaffoldWithBottomNavBar(child: child);
         },
@@ -134,7 +148,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
     ],
   );
-});
+}
 
 class ScaffoldWithBottomNavBar extends StatelessWidget {
   final Widget child;

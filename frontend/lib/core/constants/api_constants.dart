@@ -1,9 +1,9 @@
 class ApiConstants {
-  // Override at launch when running on an emulator or a physical device.
+  // Production API by default. Override for a local backend when needed.
   // Example: --dart-define=API_BASE_URL=http://10.0.2.2:8000
   static const String baseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'http://127.0.0.1:8000',
+    defaultValue: 'https://maanak-85bh.onrender.com',
   );
 
   static const String login = "/api/auth/login";

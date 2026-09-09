@@ -243,7 +243,7 @@ class SupervisorScreen extends ConsumerWidget {
                   style: const TextStyle(fontSize: 11, color: AppColors.neutral500),
                 ),
                 TextButton(
-                  onPressed: () => context.push('/inspections'),
+                  onPressed: () => context.go('/inspections'),
                   child: const Text('Review Docket', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
                 ),
               ],

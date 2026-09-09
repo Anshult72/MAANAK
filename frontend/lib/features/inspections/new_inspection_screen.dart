@@ -67,7 +67,9 @@ class _NewInspectionScreenState extends ConsumerState<NewInspectionScreen> {
       if (_inspectionType == 'ONLINE_LISTING') {
         context.push('/online-listing?inspectionId=${inspection.id}');
       } else {
-        context.push('/scanner?inspectionId=${inspection.id}');
+        // Use go() not push() — /scanner is inside ShellRoute and
+        // push() from outside the shell creates a duplicate shell page key.
+        context.go('/scanner?inspectionId=${inspection.id}');
       }
     } else if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(

@@ -31,10 +31,18 @@ class _AnalysisProgressScreenState extends ConsumerState<AnalysisProgressScreen>
   @override
   void initState() {
     super.initState();
-    _runAnalysisFlow();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _runAnalysisFlow();
+    });
   }
 
   Future<void> _runAnalysisFlow() async {
+    setState(() {
+      _errorMessage = null;
+      _currentStep = 0;
+      _isComplete = false;
+    });
+
     // Start backend analysis call
     final analysisFuture = ref.read(inspectionsProvider.notifier).triggerAnalysis(widget.inspectionId);
 
@@ -56,16 +64,13 @@ class _AnalysisProgressScreenState extends ConsumerState<AnalysisProgressScreen>
         });
         await Future.delayed(const Duration(milliseconds: 700));
         if (mounted) {
-          context.go('/inspection/${widget.inspectionId}');
+          context.go('/inspections/${widget.inspectionId}');
         }
       } else {
+        final error = ref.read(inspectionsProvider).errorMessage ?? "Analysis pipeline failed. Please retry.";
         setState(() {
-          _isComplete = true;
+          _errorMessage = error;
         });
-        await Future.delayed(const Duration(milliseconds: 700));
-        if (mounted) {
-          context.go('/inspection/${widget.inspectionId}');
-        }
       }
     } catch (e) {
       if (mounted) {

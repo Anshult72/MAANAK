@@ -270,20 +270,20 @@ class _InspectionDetailScreenState extends ConsumerState<InspectionDetailScreen>
                   child: Row(
                     children: [
                       OutlinedButton.icon(
-                        onPressed: () => context.push('/inspection/${widget.inspectionId}/calibration'),
+                        onPressed: () => context.push('/calibration?inspectionId=${widget.inspectionId}'),
                         icon: const Icon(Icons.straighten, size: 16),
                         label: const Text("Calibrate Scale"),
                       ),
                       const SizedBox(width: 8),
                       OutlinedButton.icon(
-                        onPressed: () => context.push('/inspection/${widget.inspectionId}/evidence'),
+                        onPressed: () => context.push('/evidence/${widget.inspectionId}'),
                         icon: const Icon(Icons.visibility, size: 16),
                         label: const Text("Visual Evidence"),
                       ),
                       const SizedBox(width: 8),
                       ElevatedButton.icon(
                         style: ElevatedButton.styleFrom(backgroundColor: AppColors.secondaryBlue),
-                        onPressed: () => context.push('/inspection/${widget.inspectionId}/report'),
+                        onPressed: () => context.push('/reports/${widget.inspectionId}'),
                         icon: const Icon(Icons.picture_as_pdf, size: 16),
                         label: const Text("View Report"),
                       ),
@@ -378,7 +378,7 @@ class _InspectionDetailScreenState extends ConsumerState<InspectionDetailScreen>
             const Text("No declarations extracted yet.", style: TextStyle(color: AppColors.textMuted)),
             const SizedBox(height: 12),
             ElevatedButton(
-              onPressed: () => context.push('/inspection/${widget.inspectionId}/analysis'),
+              onPressed: () => context.push('/analysis-progress/${widget.inspectionId}'),
               child: const Text("Run AI Analysis"),
             ),
           ],
@@ -537,7 +537,7 @@ class _InspectionDetailScreenState extends ConsumerState<InspectionDetailScreen>
                   _buildMetaRow("Calibration Status:", ins?.calibrationStatus ?? "NOT_CALIBRATED"),
                   const SizedBox(height: 16),
                   ElevatedButton.icon(
-                    onPressed: () => context.push('/inspection/${widget.inspectionId}/calibration'),
+                    onPressed: () => context.push('/calibration?inspectionId=${widget.inspectionId}'),
                     icon: const Icon(Icons.straighten, size: 16),
                     label: const Text("Open Scale Calibration Tool"),
                   ),

@@ -184,12 +184,7 @@ async def analyze_product(
 
     images = ins.get("images", [])
     if not images:
-        # Create a default fallback image representation for demo flow if none uploaded yet
-        images = [{
-            "id": f"img-{inspection_id}-front",
-            "surface_type": "FRONT",
-            "original_path": "storage/inspections/demo/rice_front.jpg"
-        }]
+        raise HTTPException(status_code=400, detail="Capture at least one package image before analysis.")
 
     # Update status
     await repo.update(inspection_id, {"status": "ANALYSING"})
@@ -225,10 +220,10 @@ async def analyze_product(
             "verified_value": val,
             "unit": item.get("canonical_unit"),
             "confidence": item.get("confidence", 0.95),
-            "source_image_id": images[0]["id"] if images else None,
+            "source_image_id": item.get("source_image_id"),
             "source_block_id": item.get("source_block_id"),
-            "source_text": val,
-            "bbox": {"x": 100, "y": 200 + (idx * 60), "width": 400, "height": 45},
+            "source_text": item.get("source_text"),
+            "bbox": item.get("bbox"),
             "presence_status": "DETECTED" if item.get("presence") else "MISSING",
             "correctness_status": item.get("correctness", "VALID"),
             "verification_status": "PENDING",
@@ -246,7 +241,7 @@ async def analyze_product(
         "packageType": ins.get("package_type") or "RECTANGULAR",
         "packageConstructionType": ins.get("package_construction_type") or "NORMAL",
         "calibrationStatus": ins.get("calibration_status") or "NOT_CALIBRATED",
-        "pdpAreaCm2": ins.get("pdp_data", {}).get("areaCm2", 320.0) if ins.get("pdp_data") else 320.0
+        "pdpAreaCm2": ins.get("pdp_data", {}).get("areaCm2") if ins.get("pdp_data") else None
     }
 
     compliance_assessment = await compliance_engine.evaluate_compliance(

@@ -95,8 +95,9 @@ class DashboardScreen extends ConsumerWidget {
             icon: const Icon(Icons.logout, size: 20),
             tooltip: 'Logout',
             onPressed: () {
+              // GoRouter's redirect will automatically navigate to /login
+              // when authProvider state becomes unauthenticated.
               ref.read(authProvider.notifier).logout();
-              context.go('/login');
             },
           ),
         ],
@@ -389,7 +390,7 @@ class DashboardScreen extends ConsumerWidget {
                   icon: Icons.qr_code_scanner,
                   label: 'Physical\nPackage',
                   color: AppColors.secondary,
-                  onTap: () => context.push('/scanner'),
+                  onTap: () => context.go('/scanner'),
                 ),
               ),
               const SizedBox(width: 8),
@@ -416,7 +417,7 @@ class DashboardScreen extends ConsumerWidget {
                   icon: Icons.fingerprint,
                   label: 'Product\nHistory',
                   color: Colors.purple.shade700,
-                  onTap: () => context.push('/products'),
+                  onTap: () => context.go('/products'),
                 ),
               ),
             ],
@@ -500,7 +501,7 @@ class DashboardScreen extends ConsumerWidget {
           const SizedBox(width: 8),
           IconButton(
             icon: const Icon(Icons.chevron_right, color: AppColors.neutral600),
-            onPressed: () => context.push('/products'),
+            onPressed: () => context.go('/products'),
           ),
         ],
       ),

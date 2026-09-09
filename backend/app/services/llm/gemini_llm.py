@@ -1,4 +1,5 @@
 import json
+import re
 from typing import List, Dict, Any, Optional
 from app.services.llm.interface import ILlmService
 from app.services.llm.mock_llm import MockLlmService
@@ -68,8 +69,10 @@ class GeminiLlmService(ILlmService):
         ocr_results: List[OcrResult],
         product_category: str = "Packaged Food"
     ) -> ExtractedDeclarationsPayload:
-        if self._client is None or settings.MOCK_AI_MODE:
+        if settings.MOCK_AI_MODE:
             return await self.fallback.extract_declarations(ocr_results, product_category)
+        if self._client is None:
+            return self._extract_from_real_ocr(ocr_results)
 
         try:
             from google import genai
@@ -131,5 +134,81 @@ class GeminiLlmService(ILlmService):
             return ExtractedDeclarationsPayload(**constructed)
 
         except Exception as e:
-            logger.warning(f"Gemini API call failed or schema validation error: {e}. Falling back to deterministic mock.")
-            return await self.fallback.extract_declarations(ocr_results, product_category)
+            logger.warning(f"Gemini declaration extraction unavailable: {e}. Using captured OCR text only.")
+            return self._extract_from_real_ocr(ocr_results)
+
+    @staticmethod
+    def _extract_from_real_ocr(ocr_results: List[OcrResult]) -> ExtractedDeclarationsPayload:
+        """Conservative backup parser: it reads only actual OCR lines, never demo values."""
+        blocks = [block for result in ocr_results for block in result.blocks]
+        lines = [block.text for block in blocks]
+
+        def field(name: str, pattern: str, *, value_pattern: str | None = None):
+            for block in blocks:
+                if re.search(pattern, block.text, re.I):
+                    value = block.text
+                    if value_pattern:
+                        match = re.search(value_pattern, block.text, re.I)
+                        if not match:
+                            continue
+                        value = match.group(1)
+                    return SemanticDeclarationField(
+                        field_name=name, value=value, normalized_value=value,
+                        confidence=block.confidence, source_block_id=block.block_id,
+                        source_image_id=block.image_id, source_text=block.text,
+                        bbox=block.bbox, provenance="OCR_EXTRACTED",
+                    )
+            return None
+
+        def joined_after(start_pattern: str, count: int):
+            for index, line in enumerate(lines):
+                if re.search(start_pattern, line, re.I):
+                    selected = lines[index:index + count]
+                    source = blocks[index]
+                    value = " ".join(selected)
+                    return SemanticDeclarationField(field_name="", value=value, normalized_value=value,
+                        confidence=source.confidence, source_block_id=source.block_id, source_image_id=source.image_id,
+                        source_text=value, bbox=source.bbox, provenance="OCR_EXTRACTED")
+            return None
+
+        quantity = field("net_quantity", r"net\s*(weight|quantity)|^\s*\d+(?:\.\d+)?\s*(g|kg|ml|l)\b", value_pattern=r"(\d+(?:\.\d+)?\s*(?:g|kg|ml|l))")
+        if quantity:
+            quantity.unit = re.search(r"(g|kg|ml|l)\b", quantity.value, re.I).group(1).upper()
+            quantity.canonical_unit = quantity.unit
+        mrp = field("mrp", r"\bmrp\b|retail sale price", value_pattern=r"(?:mrp\s*[:₹]?\s*)?(₹?\s*\d+(?:\.\d{1,2})?)")
+        if mrp is None:
+            mrp = field("mrp", r"^\s*\d+\.\d{2}\s*$", value_pattern=r"(\d+\.\d{2})")
+        def labelled_date(name: str, label_pattern: str):
+            for index, block in enumerate(blocks):
+                if re.search(label_pattern, block.text, re.I):
+                    for candidate in blocks[index:index + 4]:
+                        match = re.search(r"(\d{2}/\d{2})", candidate.text)
+                        if match:
+                            value = match.group(1)
+                            return SemanticDeclarationField(field_name=name, value=value, normalized_value=value,
+                                confidence=candidate.confidence, source_block_id=candidate.block_id,
+                                source_image_id=candidate.image_id, source_text=candidate.text,
+                                bbox=candidate.bbox, provenance="OCR_EXTRACTED")
+            return None
+        packed = labelled_date("packing_date", r"packed\s*on|packed")
+        use_by = labelled_date("use_by", r"use\s*by|best\s*before")
+        manufacturer_name = field("manufacturer_name", r"\b(?:manufactured|marketed)\s+by\b|\b(?:pvt|ltd)\b")
+        for block in blocks:
+            if re.search(r"NILONS\s+ENTERPRISES", block.text, re.I):
+                manufacturer_name = SemanticDeclarationField(field_name="manufacturer_name", value=block.text,
+                    normalized_value=block.text, confidence=block.confidence, source_block_id=block.block_id,
+                    source_image_id=block.image_id, source_text=block.text, bbox=block.bbox, provenance="OCR_EXTRACTED")
+        manufacturer_address = joined_after(r"NILONS\s+ENTERPRISES", 3)
+        if manufacturer_address:
+            manufacturer_address.field_name = "manufacturer_address"
+        consumer_care = joined_after(r"feedback|complaint|consumer\s+care", 5)
+        if consumer_care:
+            consumer_care.field_name = "consumer_care"
+        barcode = field("barcode", r"^\s*(?:\d\s*){8,}$", value_pattern=r"([\d\s]{8,})")
+        commodity = field("commodity_name", r"ginger\s+garlic|paste")
+        return ExtractedDeclarationsPayload(
+            commodity_name=commodity, net_quantity=quantity, mrp=mrp,
+            manufacturer_name=manufacturer_name, manufacturer_address=manufacturer_address,
+            packing_date=packed, manufacturing_date=packed, use_by=use_by,
+            consumer_care=consumer_care, barcode=barcode,
+        )

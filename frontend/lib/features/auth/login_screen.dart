@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import '../../core/theme/app_theme.dart';
 import 'auth_controller.dart';
 
@@ -31,13 +30,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   Future<void> _handleLogin() async {
-    final success = await ref.read(authProvider.notifier).login(
+    // GoRouter's redirect will automatically navigate to /dashboard
+    // when authProvider state changes to authenticated.
+    await ref.read(authProvider.notifier).login(
       _emailController.text.trim(),
       _passwordController.text,
     );
-    if (success && mounted) {
-      context.go('/dashboard');
-    }
   }
 
   @override

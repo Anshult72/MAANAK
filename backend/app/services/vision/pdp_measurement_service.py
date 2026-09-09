@@ -104,8 +104,8 @@ class PdpMeasurementService(IPdpMeasurementService):
                     area_mm2 = w_mm * h_mm
                 return round(area_mm2 / 100.0, 2), 0.88
 
-        # Fallback default for baseline prototype
-        return 320.0, 0.80
+        # A physical area cannot be inferred from an uncalibrated photo.
+        return None, 0.0
 
     def resolve_rule_7_threshold(
         self,
