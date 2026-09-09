@@ -19,13 +19,12 @@ class _AnalysisProgressScreenState extends ConsumerState<AnalysisProgressScreen>
   String? _errorMessage;
 
   final List<String> _steps = [
-    "Preparing surface captures & CV quality validation",
-    "Detecting Principal Display Panel & text boundaries",
-    "Extracting coordinate text blocks via OCR",
-    "Normalizing declarations with Gemini LLM",
-    "Validating declaration correctness & consistency",
-    "Applying Rule 7 Table-I character scale & proportions",
-    "Evaluating compliance & generating visual evidence",
+    "Checking captured image quality",
+    "Reading visible package text with Groq Vision OCR",
+    "Extracting product declarations from captured text",
+    "Checking declaration completeness and consistency",
+    "Applying applicable Legal Metrology rules",
+    "Preparing the evidence-backed inspection result",
   ];
 
   @override
@@ -46,7 +45,7 @@ class _AnalysisProgressScreenState extends ConsumerState<AnalysisProgressScreen>
     // Start backend analysis call
     final analysisFuture = ref.read(inspectionsProvider.notifier).triggerAnalysis(widget.inspectionId);
 
-    // Simulate animated step transitions for realistic government inspector experience
+    // These are progress cues while the real server-side analysis runs.
     for (int i = 0; i < _steps.length; i++) {
       if (!mounted) return;
       setState(() {

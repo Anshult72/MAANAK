@@ -189,9 +189,15 @@ async def analyze_product(
     # Update status
     await repo.update(inspection_id, {"status": "ANALYSING"})
 
-    # Step 1: OCR
+    # Step 1: OCR.  Upstream vision overloads are temporary conditions, not
+    # application crashes; return an actionable retry response to the phone.
     ocr_service = get_ocr_service()
-    ocr_results = await ocr_service.extract_text_from_images(images)
+    try:
+        ocr_results = await ocr_service.extract_text_from_images(images)
+    except RuntimeError as exc:
+        logger.warning("OCR unavailable for inspection %s: %s", inspection_id, exc)
+        await repo.update(inspection_id, {"status": "DRAFT"})
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
 
     # Step 2: LLM Normalization
     llm_service = get_llm_service()
@@ -244,10 +250,15 @@ async def analyze_product(
         "pdpAreaCm2": ins.get("pdp_data", {}).get("areaCm2") if ins.get("pdp_data") else None
     }
 
+    # This is measured from the captured photo; no default quality values are
+    # used when the image cannot be analysed.
+    readability_data = cv_service.evaluate_readability(images[0].get("original_path"))
+
     compliance_assessment = await compliance_engine.evaluate_compliance(
         extracted_declarations=extracted_payload.model_dump(),
         correctness_data=correctness_data,
-        context=rule_context
+        context=rule_context,
+        readability_data=readability_data,
     )
 
     # Convert checks and violations to records

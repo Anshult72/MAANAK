@@ -20,9 +20,10 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440  # 24 hours
     
-    # Gemini AI
-    GEMINI_API_KEY: Optional[str] = Field(default=None, validation_alias="GEMINI_API_KEY")
-    GEMINI_MODEL: str = "gemini-2.5-flash-lite"
+    # Groq AI: vision OCR and text normalization use separate configurable models.
+    GROQ_API_KEY: Optional[str] = Field(default=None, validation_alias="GROQ_API_KEY")
+    GROQ_VISION_MODEL: str = Field(default="qwen/qwen3.8-27b", validation_alias="GROQ_VISION_MODEL")
+    GROQ_TEXT_MODEL: str = Field(default="openai/gpt-oss-20b", validation_alias="GROQ_TEXT_MODEL")
     MOCK_AI_MODE: bool = Field(default=True, validation_alias="MOCK_AI_MODE")
     
     # Local server-side prototype storage

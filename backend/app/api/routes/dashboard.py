@@ -102,7 +102,7 @@ async def get_admin_dashboard(user_payload: dict = Depends(get_current_user_payl
         "system_status": {
             "database": "Neon PostgreSQL (Connected / Demo Ready)",
             "ocr_engine": "PaddleOCR Abstraction (Ready)",
-            "llm_service": "Gemini 2.5 Flash-Lite (Configured)",
+            "llm_service": "Groq vision + structured extraction (Configured)",
             "pdp_vision_engine": "OpenCV Metrology Engine (Operational)",
             "report_generator": "PDF & DOCX Multi-Format Engine (Ready)"
         },
