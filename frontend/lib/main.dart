@@ -48,7 +48,7 @@ class _MaanakAppState extends ConsumerState<MaanakApp> {
   Widget build(BuildContext context) {
     // ref.listen is allowed in build — bump the notifier so GoRouter
     // re-evaluates its redirect whenever auth state changes.
-    ref.listen<AuthState>(authProvider, (_, __) {
+    ref.listen<AuthState>(authProvider, (previous, current) {
       _authNotifier.value++;
     });
 

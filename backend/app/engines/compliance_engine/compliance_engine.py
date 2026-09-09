@@ -69,11 +69,16 @@ class ComplianceEngine:
                     })
                 else:
                     # Present - check correctness status
-                    corr_status = mat_item.get("correctness") if mat_item else "REVIEW"
+                    # Some statutory fields (for example commodity name) are
+                    # extracted directly from OCR but are not represented by a
+                    # separate correctness-matrix card. Treat those as review
+                    # items instead of dereferencing a missing matrix record.
+                    matrix_item = mat_item or {}
+                    corr_status = matrix_item.get("correctness", "REVIEW")
                     # A combined manufacturer card may be REVIEW because one
                     # part needs inspection. Do not turn that into a false
                     # absence of the individual declaration.
-                    input_value = actual_value or mat_item.get("value")
+                    input_value = actual_value or matrix_item.get("value")
                     if corr_status == "VALID":
                         checks.append(ComplianceCheckResult(
                             check_type="MANDATORY_DECLARATION",
@@ -83,7 +88,7 @@ class ComplianceEngine:
                             input_value=input_value,
                             expected_condition="Presence and valid format",
                             result="PASS",
-                            confidence=mat_item.get("confidence", 0.95),
+                            confidence=matrix_item.get("confidence", 0.95),
                             explanation=f"Declaration '{field}' detected with valid format.",
                             source_reference="Rule 6(1)"
                         ))
@@ -96,7 +101,7 @@ class ComplianceEngine:
                             input_value=input_value,
                             expected_condition="Complete and standard declaration format",
                             result="REVIEW",
-                            confidence=mat_item.get("confidence", 0.85),
+                            confidence=matrix_item.get("confidence", 0.85),
                             explanation=f"Declaration '{field}' requires inspector review for completeness/standard formatting.",
                             source_reference="Rule 6 / Rule 10"
                         ))
