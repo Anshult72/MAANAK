@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:dio/dio.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
@@ -331,8 +332,52 @@ class _ReportPreviewScreenState extends ConsumerState<ReportPreviewScreen> {
 
   Future<void> _downloadDocx() async {
     final client = ref.read(apiClientProvider);
+    final ins = ref.read(inspectionsProvider).selectedInspection;
+    final code = ins?.inspectionCode ?? widget.inspectionId;
+
     try {
-      await client.get("${ApiConstants.reports}/${widget.inspectionId}/docx");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Generating and downloading editable DOCX report...'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+
+      final response = await client.get(
+        "${ApiConstants.reports}/${widget.inspectionId}/docx",
+        options: Options(responseType: ResponseType.bytes),
+      );
+
+      if (response.data != null) {
+        final List<int> rawBytes;
+        if (response.data is List<int>) {
+          rawBytes = response.data as List<int>;
+        } else if (response.data is Uint8List) {
+          rawBytes = response.data as Uint8List;
+        } else {
+          rawBytes = [];
+        }
+
+        if (rawBytes.isNotEmpty) {
+          final bytes = Uint8List.fromList(rawBytes);
+          await Printing.sharePdf(
+            bytes: bytes,
+            filename: 'MAANAK_REPORT_$code.docx',
+          );
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('✓ DOCX Report ready: MAANAK_REPORT_$code.docx'),
+                backgroundColor: AppColors.compliant,
+              ),
+            );
+          }
+          return;
+        }
+      }
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
