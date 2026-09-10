@@ -1,8 +1,7 @@
 from typing import Optional, List, Dict, Any
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, update, delete
+from sqlalchemy import select, update, delete, or_
 from app.repositories.interfaces import (
-    IUserRepository, IProductRepository, IInspectionRepository,
     IRuleRepository, IReportRepository, IAuditLogRepository
 )
 from app.models.entities import (
@@ -171,22 +170,25 @@ class NeonPostgresRepository(
 
     async def _get_inspection_by_id(self, inspection_id: str) -> Optional[Dict[str, Any]]:
         async with await self._get_session() as session:
-            stmt = select(Inspection).where(Inspection.id == inspection_id)
+            stmt = select(Inspection).where(
+                or_(Inspection.id == inspection_id, Inspection.inspection_code == inspection_id)
+            )
             res = await session.execute(stmt)
             ins = res.scalar_one_or_none()
             if not ins:
                 return None
+            actual_id = ins.id
             images = (await session.execute(
-                select(InspectionImage).where(InspectionImage.inspection_id == inspection_id)
+                select(InspectionImage).where(InspectionImage.inspection_id == actual_id)
             )).scalars().all()
             declarations = (await session.execute(
-                select(Declaration).where(Declaration.inspection_id == inspection_id)
+                select(Declaration).where(Declaration.inspection_id == actual_id)
             )).scalars().all()
             checks = (await session.execute(
-                select(ComplianceCheck).where(ComplianceCheck.inspection_id == inspection_id)
+                select(ComplianceCheck).where(ComplianceCheck.inspection_id == actual_id)
             )).scalars().all()
             violations = (await session.execute(
-                select(Violation).where(Violation.inspection_id == inspection_id)
+                select(Violation).where(Violation.inspection_id == actual_id)
             )).scalars().all()
             return {
                 "id": ins.id, "inspection_code": ins.inspection_code, "inspector_id": ins.inspector_id,
@@ -441,7 +443,11 @@ class NeonPostgresRepository(
 
     async def get_report_by_inspection_id(self, inspection_id: str) -> Optional[Dict[str, Any]]:
         async with await self._get_session() as session:
-            stmt = select(Report).where(Report.inspection_id == inspection_id)
+            ins = await self._get_inspection_by_id(inspection_id)
+            canonical_id = ins["id"] if ins else inspection_id
+            stmt = select(Report).where(
+                or_(Report.inspection_id == canonical_id, Report.inspection_id == inspection_id)
+            )
             res = await session.execute(stmt)
             rep = res.scalar_one_or_none()
             if not rep:

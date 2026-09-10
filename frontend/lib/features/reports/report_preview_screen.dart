@@ -334,21 +334,53 @@ class _ReportPreviewScreenState extends ConsumerState<ReportPreviewScreen> {
     final client = ref.read(apiClientProvider);
     final ins = ref.read(inspectionsProvider).selectedInspection;
     final code = ins?.inspectionCode ?? widget.inspectionId;
+    final targetId = (ins != null && ins.id.isNotEmpty) ? ins.id : widget.inspectionId;
 
     try {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Generating and downloading editable DOCX report...'),
+            content: Text('Generating & downloading editable DOCX report...'),
             duration: Duration(seconds: 2),
           ),
         );
       }
 
-      final response = await client.get(
-        "${ApiConstants.reports}/${widget.inspectionId}/docx",
-        options: Options(responseType: ResponseType.bytes),
-      );
+      // 1. Ensure DOCX report is generated on backend
+      try {
+        await client.post("${ApiConstants.reports}/$targetId/docx");
+      } catch (postErr) {
+        debugPrint('DOCX POST notice ($targetId): $postErr');
+        if (targetId != widget.inspectionId) {
+          try {
+            await client.post("${ApiConstants.reports}/${widget.inspectionId}/docx");
+          } catch (_) {}
+        }
+      }
+
+      // 2. Download the binary DOCX file
+      Response response;
+      try {
+        response = await client.get(
+          "${ApiConstants.reports}/$targetId/docx",
+          options: Options(
+            responseType: ResponseType.bytes,
+            headers: {'Accept': '*/*'},
+          ),
+        );
+      } catch (getErr) {
+        if (targetId != widget.inspectionId) {
+          response = await client.get(
+            "${ApiConstants.reports}/${widget.inspectionId}/docx",
+            options: Options(
+              responseType: ResponseType.bytes,
+              headers: {'Accept': '*/*'},
+            ),
+          );
+        } else {
+          rethrow;
+        }
+      }
 
       if (response.data != null) {
         final List<int> rawBytes;
@@ -389,7 +421,10 @@ class _ReportPreviewScreenState extends ConsumerState<ReportPreviewScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('DOCX download: $e'), backgroundColor: AppColors.violation),
+          SnackBar(
+            content: Text('DOCX download error: $e'),
+            backgroundColor: AppColors.violation,
+          ),
         );
       }
     }

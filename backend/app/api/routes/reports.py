@@ -170,16 +170,17 @@ async def generate_and_archive_docx(
     if not ins:
         raise HTTPException(status_code=404, detail="Inspection not found")
 
-    existing_rep = await repo.get_report_by_inspection_id(inspection_id)
+    canonical_id = ins.get("id", inspection_id)
+    existing_rep = await repo.get_report_by_inspection_id(canonical_id)
     version = (existing_rep.get("report_version", 1)) if existing_rep else 1
 
     report_model = _build_report_model(ins, user_payload, version)
     docx_bytes = docx_report_generator.generate_docx(report_model)
-    file_path, sha256 = await storage_manager.save_report_docx(inspection_id, docx_bytes, version)
+    file_path, sha256 = await storage_manager.save_report_docx(canonical_id, docx_bytes, version)
 
     report_record = existing_rep or {
-        "id": f"rep-{inspection_id}",
-        "inspection_id": inspection_id,
+        "id": f"rep-{canonical_id}",
+        "inspection_id": canonical_id,
         "report_version": version,
         "generated_by": user_payload["sub"]
     }
@@ -210,7 +211,8 @@ async def get_docx_report(
     if not ins:
         raise HTTPException(status_code=404, detail="Inspection not found")
 
-    rep = await repo.get_report_by_inspection_id(inspection_id)
+    canonical_id = ins.get("id", inspection_id)
+    rep = await repo.get_report_by_inspection_id(canonical_id)
     if rep and rep.get("docx_path") and os.path.isfile(rep["docx_path"]):
         return FileResponse(
             rep["docx_path"],
@@ -224,10 +226,10 @@ async def get_docx_report(
     docx_bytes = docx_report_generator.generate_docx(report_model)
 
     try:
-        file_path, sha256 = await storage_manager.save_report_docx(inspection_id, docx_bytes, version)
+        file_path, sha256 = await storage_manager.save_report_docx(canonical_id, docx_bytes, version)
         report_record = rep or {
-            "id": f"rep-{inspection_id}",
-            "inspection_id": inspection_id,
+            "id": f"rep-{canonical_id}",
+            "inspection_id": canonical_id,
             "report_version": version,
             "generated_by": user_payload.get("sub", "system")
         }
@@ -238,7 +240,7 @@ async def get_docx_report(
     except Exception as e:
         logger.warning(f"Could not persist docx report to disk: {e}")
 
-    filename = f"MAANAK_REPORT_{ins.get('inspection_code', inspection_id)}.docx"
+    filename = f"MAANAK_REPORT_{ins.get('inspection_code', canonical_id)}.docx"
     return Response(
         content=docx_bytes,
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",

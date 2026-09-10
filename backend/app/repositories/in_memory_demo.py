@@ -820,6 +820,10 @@ class DemoInMemoryRepository(
 
     async def get_by_id(self, inspection_id: str) -> Optional[Dict[str, Any]]:
         ins = self.inspections.get(inspection_id)
+        if not ins:
+            for item in self.inspections.values():
+                if item.get("inspection_code") == inspection_id:
+                    return copy.deepcopy(item)
         return copy.deepcopy(ins) if ins else None
 
     async def update(self, inspection_id: str, updates: Dict[str, Any]) -> Optional[Dict[str, Any]]:
@@ -979,6 +983,11 @@ class DemoInMemoryRepository(
         for rep in self.reports.values():
             if rep["inspection_id"] == inspection_id:
                 return copy.deepcopy(rep)
+        ins = await self.get_by_id(inspection_id)
+        if ins and ins.get("id") != inspection_id:
+            for rep in self.reports.values():
+                if rep["inspection_id"] == ins["id"]:
+                    return copy.deepcopy(rep)
         return None
 
     # --- IAuditLogRepository ---
