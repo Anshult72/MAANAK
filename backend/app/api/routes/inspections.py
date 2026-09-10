@@ -4,6 +4,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, status
+from fastapi.responses import FileResponse, Response
 from app.schemas.domain import (
     InspectionCreate, InspectionUpdate, InspectionResponse, ImageResponse,
     ComplianceAssessmentResponse
@@ -156,6 +157,42 @@ async def upload_image(
     })
 
     return saved_img
+
+@router.get("/{inspection_id}/images/{image_id}")
+async def get_inspection_image(
+    inspection_id: str,
+    image_id: str,
+):
+    """Retrieve raw image file for an inspection.
+    Attempts local disk read, and gracefully falls back to recovering image bytes
+    from quality_details base64 storage if running on an ephemeral Railway container."""
+    repo = get_repository()
+    ins = await repo.get_by_id(inspection_id)
+    if not ins:
+        raise HTTPException(status_code=404, detail="Inspection not found")
+
+    images = ins.get("images", [])
+    target = next((img for img in images if img.get("id") == image_id), None)
+    if not target:
+        raise HTTPException(status_code=404, detail="Image not found")
+
+    orig_path = target.get("original_path")
+    mime = target.get("mime_type") or "image/jpeg"
+
+    if orig_path and os.path.isfile(orig_path):
+        return FileResponse(orig_path, media_type=mime)
+
+    # Ephemeral Railway fallback: restore from quality_details base64
+    quality_details = target.get("quality_details") or {}
+    b64_data = quality_details.get("_image_b64")
+    if b64_data:
+        try:
+            raw_bytes = base64.b64decode(b64_data)
+            return Response(content=raw_bytes, media_type=mime)
+        except Exception:
+            logger.warning("Failed to decode base64 image data for %s", image_id)
+
+    raise HTTPException(status_code=404, detail="Image content unavailable")
 
 @router.delete("/{inspection_id}/images/{image_id}")
 async def delete_image(
