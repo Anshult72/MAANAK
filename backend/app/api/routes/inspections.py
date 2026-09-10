@@ -1,3 +1,5 @@
+import base64
+import os
 import uuid
 from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any
@@ -122,6 +124,11 @@ async def upload_image(
     # Perform CV Image Quality Assessment
     quality_info = cv_service.assess_image_quality(orig_path)
 
+    # Persist image bytes as base64 in the quality_details JSON so images
+    # survive Railway's ephemeral filesystem restarts without needing a
+    # schema migration or external object storage.
+    quality_info["_image_b64"] = base64.b64encode(file_bytes).decode("ascii")
+
     image_record = {
         "id": f"img-{uuid.uuid4().hex[:8]}",
         "inspection_id": inspection_id,
@@ -186,6 +193,24 @@ async def analyze_product(
     if not images:
         raise HTTPException(status_code=400, detail="Capture at least one package image before analysis.")
 
+    # ── Restore missing image files from database-persisted base64 ──
+    # Railway (like Render) uses an ephemeral filesystem; uploaded images
+    # vanish on redeploy.  Re-materialise them from the base64 payload
+    # stored in quality_details at upload time.
+    for img_record in images:
+        orig = img_record.get("original_path")
+        if orig and not os.path.isfile(orig):
+            qd = img_record.get("quality_details") or {}
+            b64_data = qd.get("_image_b64")
+            if b64_data:
+                try:
+                    os.makedirs(os.path.dirname(orig), exist_ok=True)
+                    with open(orig, "wb") as f:
+                        f.write(base64.b64decode(b64_data))
+                    logger.info("Restored missing image from DB: %s", orig)
+                except Exception as restore_err:
+                    logger.warning("Could not restore image %s: %s", orig, restore_err)
+
     # Update status — any failure below must reset to DRAFT so the case is not stuck.
     await repo.update(inspection_id, {"status": "ANALYSING"})
 
@@ -195,10 +220,26 @@ async def analyze_product(
         try:
             ocr_results = await ocr_service.extract_text_from_images(images)
         except FileNotFoundError as exc:
-            logger.warning("Captured image file missing for %s: %s", inspection_id, exc)
-            raise HTTPException(status_code=400, detail="Captured package image is no longer available in server storage. Please re-capture or upload the package photo.") from exc
+            logger.warning("Image file missing for %s: %s", inspection_id, exc)
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Captured package images are no longer available in server storage. "
+                    "Please re-capture or re-upload the package photos."
+                ),
+            ) from exc
         except RuntimeError as exc:
-            logger.warning("OCR unavailable for inspection %s: %s", inspection_id, exc)
+            err_msg = str(exc).lower()
+            if "no longer available" in err_msg or "storage" in err_msg:
+                logger.warning("Image storage error for %s: %s", inspection_id, exc)
+                raise HTTPException(
+                    status_code=400,
+                    detail=(
+                        "Captured package images are no longer available in server storage. "
+                        "Please re-capture or re-upload the package photos."
+                    ),
+                ) from exc
+            logger.warning("OCR service error for %s: %s", inspection_id, exc)
             raise HTTPException(status_code=503, detail=str(exc)) from exc
 
         # Step 2: LLM Normalization

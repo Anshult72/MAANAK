@@ -1,9 +1,13 @@
 class ApiConstants {
-  // Production API by default. Override for a local backend when needed.
-  // Example: --dart-define=API_BASE_URL=http://10.0.2.2:8000
+  // ---------------------------------------------------------------------------
+  // Production API (Railway).
+  // Override at build-time for local development:
+  //   flutter run --dart-define=API_BASE_URL=http://10.0.2.2:8000
+  //   flutter build apk --release --dart-define=API_BASE_URL=https://maanak-production.up.railway.app
+  // ---------------------------------------------------------------------------
   static const String baseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'https://maanak-85bh.onrender.com',
+    defaultValue: 'https://maanak-production.up.railway.app',
   );
 
   static const String login = "/api/auth/login";

@@ -1,3 +1,6 @@
+# ⚠️  DEPRECATED — Production backend has moved to Railway.
+# This file is kept for historical reference only.
+# See railway.json for the active deployment configuration.
 services:
   - type: web
     name: maanak-backend

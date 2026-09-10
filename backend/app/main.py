@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app.core.config import settings
-from app.core.logging import setup_logging, logger
+from app.core.logging import setup_logging, logger, RequestLoggingMiddleware
 from app.api.routes import (
     auth, inspections, declarations, findings, reports, products, rules,
     dashboard, audit_logs, online_listings
@@ -20,6 +20,9 @@ app = FastAPI(
     docs_url="/docs",
     redoc_url="/redoc"
 )
+
+# Request logging middleware — logs method, path, status, duration for Railway debugging
+app.add_middleware(RequestLoggingMiddleware)
 
 # CORS configuration
 if settings.cors_origins_list == ["*"]:
@@ -73,13 +76,53 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 @app.get("/health")
 async def health_check():
+    """Lightweight health check for Railway health monitoring.
+    Does not depend on Gemini/OCR/database."""
     return {
-        "status": "healthy",
+        "status": "ok",
         "service": "MAANAK Legal Metrology Platform",
         "mode": "DEMO_DATA_MODE" if settings.is_demo_mode else "NEON_POSTGRESQL",
         "version": "1.0.0"
     }
 
+@app.get("/ready")
+async def readiness_check():
+    """Readiness probe — verifies database connectivity and required config.
+    Does not call expensive Gemini/OCR operations."""
+    checks = {
+        "database": False,
+        "config": True,
+    }
+
+    # Check database connectivity
+    from app.core.database import AsyncSessionLocal
+    if AsyncSessionLocal is not None:
+        try:
+            from sqlalchemy import text
+            async with AsyncSessionLocal() as session:
+                await session.execute(text("SELECT 1"))
+            checks["database"] = True
+        except Exception as e:
+            logger.warning("Readiness: database check failed: %s", e)
+            checks["database"] = False
+    else:
+        # In demo mode, database is not required
+        checks["database"] = settings.is_demo_mode
+
+    # Check required config
+    if not settings.is_demo_mode and not settings.DATABASE_URL:
+        checks["config"] = False
+
+    all_ready = all(checks.values())
+    return JSONResponse(
+        status_code=200 if all_ready else 503,
+        content={
+            "status": "ready" if all_ready else "not_ready",
+            "checks": checks,
+        }
+    )
+
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True)
+    port = int(os.environ.get("PORT", settings.PORT))
+    uvicorn.run("app.main:app", host="0.0.0.0", port=port, reload=True)

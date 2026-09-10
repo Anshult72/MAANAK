@@ -2,12 +2,66 @@ import os
 import hashlib
 import uuid
 import aiofiles
+from abc import ABC, abstractmethod
 from PIL import Image
 from typing import Tuple, Optional
 from app.core.config import settings
 from app.core.logging import logger
 
-class StorageManager:
+
+class IFileStorage(ABC):
+    """Abstract storage interface.
+
+    Implementations:
+      - StorageManager  (local filesystem — current prototype)
+      - Future: S3Storage, MinIOStorage, etc.
+
+    ⚠️  FILE PERSISTENCE WARNING:
+    Railway (like Render) uses an ephemeral filesystem by default.
+    Files written to local disk will be lost on redeploy/restart unless
+    a persistent Railway volume is mounted at STORAGE_ROOT.
+
+    For the current prototype, uploaded images are also persisted as
+    base64 inside the database (quality_details JSON) so the OCR
+    pipeline can restore them automatically. Reports and evidence
+    crops are regenerable and do not require permanent storage.
+    """
+
+    @abstractmethod
+    async def save_inspection_image(
+        self, inspection_id: str, file_bytes: bytes, filename: str
+    ) -> Tuple[str, str, int, int, str]:
+        """Save original image + thumbnail. Returns (orig_path, thumb_path, w, h, sha256)."""
+        ...
+
+    @abstractmethod
+    async def save_evidence_crop(
+        self, original_path: str, bbox: dict, finding_id: str
+    ) -> Optional[str]:
+        """Crop bbox from original image. Returns crop path or None."""
+        ...
+
+    @abstractmethod
+    async def save_report_pdf(
+        self, inspection_id: str, file_bytes: bytes, version: int
+    ) -> Tuple[str, str]:
+        """Save PDF bytes. Returns (file_path, sha256)."""
+        ...
+
+    @abstractmethod
+    async def save_report_docx(
+        self, inspection_id: str, file_bytes: bytes, version: int
+    ) -> Tuple[str, str]:
+        """Save DOCX bytes. Returns (file_path, sha256)."""
+        ...
+
+
+class StorageManager(IFileStorage):
+    """Local filesystem storage implementation (prototype).
+
+    Suitable for development and Railway deployments with a mounted volume.
+    """
+
     def __init__(self, root_dir: str = settings.STORAGE_ROOT):
         self.root_dir = root_dir
         self.inspections_dir = os.path.join(root_dir, "inspections")

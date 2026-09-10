@@ -8,7 +8,11 @@ class Settings(BaseSettings):
 
     APP_NAME: str = "MAANAK - Legal Metrology Platform"
     APP_ENV: str = "development"
+    ENVIRONMENT: str = Field(default="development", validation_alias="ENVIRONMENT")
     DEBUG: bool = True
+
+    # Railway injects PORT at runtime; fallback to 8000 for local dev.
+    PORT: int = Field(default=8000, validation_alias="PORT")
     
     # Neon PostgreSQL connection string (postgresql+asyncpg://...)
     # If empty, DEMO_DATA_MODE is activated (in-memory repository, zero credentials needed)
@@ -25,8 +29,13 @@ class Settings(BaseSettings):
     GROQ_VISION_MODEL: str = Field(default="qwen/qwen3.8-27b", validation_alias="GROQ_VISION_MODEL")
     GROQ_TEXT_MODEL: str = Field(default="openai/gpt-oss-20b", validation_alias="GROQ_TEXT_MODEL")
     MOCK_AI_MODE: bool = Field(default=True, validation_alias="MOCK_AI_MODE")
+
+    # Gemini AI (optional — used by the declaration extraction fallback)
+    GEMINI_API_KEY: Optional[str] = Field(default=None, validation_alias="GEMINI_API_KEY")
+    GEMINI_MODEL: str = Field(default="gemini-2.5-flash-lite", validation_alias="GEMINI_MODEL")
     
-    # Local server-side prototype storage
+    # Local server-side prototype storage.
+    # On Railway, set this to the volume mount path for persistence.
     STORAGE_ROOT: str = Field(default="storage", validation_alias="STORAGE_ROOT")
     
     # CORS
@@ -41,5 +50,9 @@ class Settings(BaseSettings):
     @property
     def is_demo_mode(self) -> bool:
         return not self.DATABASE_URL or self.DEMO_DATA_MODE
+
+    @property
+    def is_production(self) -> bool:
+        return self.APP_ENV == "production" or self.ENVIRONMENT == "production"
 
 settings = Settings()

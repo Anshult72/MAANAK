@@ -20,7 +20,7 @@ RUN python -c "from app.main import app; assert app"
 # Ensure storage directories exist
 RUN mkdir -p storage/images storage/reports storage/audit
 
-# Cloud platforms like Render, Koyeb, Railway pass $PORT automatically
+# Cloud platforms like Railway, Render, Koyeb pass $PORT automatically
 EXPOSE 8000
 
 CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]

@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../constants/api_constants.dart';
@@ -16,8 +17,9 @@ class ApiClient {
         baseUrl: ApiConstants.baseUrl,
         connectTimeout: const Duration(seconds: 15),
         // Vision OCR plus declaration extraction can take longer on a cold
-        // Render instance. Do not cancel a real analysis after 25 seconds.
+        // Railway instance. Do not cancel a real analysis after 25 seconds.
         receiveTimeout: const Duration(seconds: 180),
+        sendTimeout: const Duration(seconds: 120),
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
@@ -34,6 +36,72 @@ class ApiClient {
           return handler.next(options);
         },
         onError: (DioException e, handler) {
+          // Transform raw network / HTTP errors into user-friendly messages
+          // so that UI code does not need to interpret low-level exceptions.
+          if (e.type == DioExceptionType.connectionError ||
+              e.type == DioExceptionType.connectionTimeout ||
+              e.error is SocketException) {
+            return handler.next(
+              DioException(
+                requestOptions: e.requestOptions,
+                response: e.response,
+                type: e.type,
+                error: e.error,
+                message:
+                    'Unable to connect to MAANAK server. Please check your internet connection and try again.',
+              ),
+            );
+          }
+
+          final statusCode = e.response?.statusCode;
+          if (statusCode == 401) {
+            return handler.next(
+              DioException(
+                requestOptions: e.requestOptions,
+                response: e.response,
+                type: e.type,
+                error: e.error,
+                message: 'Session expired. Please log in again.',
+              ),
+            );
+          }
+          if (statusCode == 403) {
+            return handler.next(
+              DioException(
+                requestOptions: e.requestOptions,
+                response: e.response,
+                type: e.type,
+                error: e.error,
+                message:
+                    'You do not have permission to perform this action.',
+              ),
+            );
+          }
+          if (statusCode == 404) {
+            return handler.next(
+              DioException(
+                requestOptions: e.requestOptions,
+                response: e.response,
+                type: e.type,
+                error: e.error,
+                message:
+                    'The requested resource was not found on the server.',
+              ),
+            );
+          }
+          if (statusCode != null && statusCode >= 500) {
+            return handler.next(
+              DioException(
+                requestOptions: e.requestOptions,
+                response: e.response,
+                type: e.type,
+                error: e.error,
+                message:
+                    'MAANAK server encountered an error. Please try again.',
+              ),
+            );
+          }
+
           return handler.next(e);
         },
       ),
