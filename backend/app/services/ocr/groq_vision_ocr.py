@@ -22,7 +22,7 @@ class GroqVisionOcrService(IOcrService):
         self, image_path: str, image_id: str, surface_type: str = "FRONT"
     ) -> OcrResult:
         if not os.path.isfile(image_path):
-            raise ValueError(f"Captured image is unavailable: {image_path}")
+            raise FileNotFoundError(f"Captured image is unavailable: {image_path}")
         if os.path.getsize(image_path) > 20 * 1024 * 1024:
             raise ValueError("Captured image is over Groq's 20 MB image-request limit.")
 
@@ -87,7 +87,12 @@ class GroqVisionOcrService(IOcrService):
             if isinstance(line, dict) and str(line.get("text", "")).strip()
         ]
         if not blocks:
-            raise ValueError("No readable text was detected in the captured image.")
+            return OcrResult(
+                raw_text="",
+                blocks=[],
+                confidence=0.0,
+                image_id=image_id,
+            )
         return OcrResult(
             raw_text="\n".join(block.text for block in blocks),
             blocks=blocks,
@@ -96,9 +101,14 @@ class GroqVisionOcrService(IOcrService):
         )
 
     async def extract_text_from_images(self, image_items: List[dict]) -> List[OcrResult]:
+        existing_items = [item for item in image_items if item.get("original_path") and os.path.isfile(item["original_path"])]
+        if not existing_items:
+            raise RuntimeError(
+                "Captured package images are no longer available in server storage. Please re-capture or re-upload the package photos."
+            )
         return [
             await self.extract_text(
                 item["original_path"], item["id"], item.get("surface_type", "FRONT")
             )
-            for item in image_items
+            for item in existing_items
         ]

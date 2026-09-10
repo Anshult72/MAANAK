@@ -199,12 +199,23 @@ class InspectionsNotifier extends StateNotifier<InspectionState> {
       String message = "Analysis could not be completed. Please retry in a moment.";
       if (e is DioException) {
         final responseData = e.response?.data;
-        if (responseData is Map && responseData['detail'] is String) {
-          message = responseData['detail'] as String;
+        if (responseData is Map) {
+          if (responseData['detail'] is String) {
+            message = responseData['detail'] as String;
+          } else if (responseData['error'] is Map) {
+            final errorMap = responseData['error'] as Map;
+            message = (errorMap['details'] as String?) ??
+                (errorMap['message'] as String?) ??
+                message;
+          } else if (responseData['message'] is String) {
+            message = responseData['message'] as String;
+          }
+        } else if (responseData is String && responseData.isNotEmpty && !responseData.contains("<html")) {
+          message = responseData;
         } else if (e.response?.statusCode == 503) {
           message = "Image analysis service is temporarily busy. Please retry in a moment.";
         } else if (e.response?.statusCode != null) {
-          message = "The server could not complete this analysis. Please retry.";
+          message = "The server could not complete this analysis (${e.response?.statusCode}). Please retry.";
         }
       }
       state = state.copyWith(isLoading: false, errorMessage: message);

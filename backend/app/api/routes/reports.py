@@ -126,7 +126,7 @@ async def generate_and_archive_docx(
         net_quantity="5 kg",
         overall_status=ins.get("status", "READY"),
         score=ins.get("score") or 90.0,
-        pdp_area_cm2=ins.get("pdp_data", {}).get("areaCm2", 320.0),
+        pdp_area_cm2=(ins.get("pdp_data") or {}).get("areaCm2", 320.0),
         package_construction=ins.get("package_construction_type", "NORMAL"),
         calibration_status=ins.get("calibration_status", "CALIBRATED"),
         declarations=ins.get("declarations", []),

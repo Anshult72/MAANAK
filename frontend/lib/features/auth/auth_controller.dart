@@ -112,47 +112,6 @@ class AuthNotifier extends StateNotifier<AuthState> {
         return false;
       }
     } catch (e) {
-      // Offline / fallback demo login support
-      if (email.contains("inspector")) {
-        final user = AuthUser(
-          id: "u-insp-1",
-          email: "inspector@demo.gov.in",
-          fullName: "Ramesh Verma",
-          officerId: "LM-UP-2026-042",
-          department: "Legal Metrology Department",
-          role: "INSPECTOR",
-          zone: "New Delhi Central Zone",
-        );
-        _apiClient.setAuthToken("demo-inspector-token");
-        state = state.copyWith(isAuthenticated: true, isLoading: false, user: user);
-        return true;
-      } else if (email.contains("supervisor")) {
-        final user = AuthUser(
-          id: "u-sup-1",
-          email: "supervisor@demo.gov.in",
-          fullName: "Sunita Sharma",
-          officerId: "LM-UP-SUP-012",
-          department: "Legal Metrology Headquarters",
-          role: "SUPERVISOR",
-          zone: "Northern Regional Zone",
-        );
-        _apiClient.setAuthToken("demo-supervisor-token");
-        state = state.copyWith(isAuthenticated: true, isLoading: false, user: user);
-        return true;
-      } else if (email.contains("admin")) {
-        final user = AuthUser(
-          id: "u-admin-1",
-          email: "admin@demo.gov.in",
-          fullName: "Rajesh Gupta",
-          officerId: "LM-HQ-ADM-001",
-          department: "Directorate of Legal Metrology",
-          role: "ADMIN",
-          zone: "National HQ",
-        );
-        _apiClient.setAuthToken("demo-admin-token");
-        state = state.copyWith(isAuthenticated: true, isLoading: false, user: user);
-        return true;
-      }
       state = state.copyWith(
         isLoading: false,
         errorMessage: "Could not connect to MAANAK server. Please verify backend is running.",

@@ -1,4 +1,5 @@
 import 'dart:typed_data';
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -25,10 +26,49 @@ class _ScannerScreenState extends ConsumerState<ScannerScreen> {
 
   int _selectedSurfaceIndex = 0;
   final List<String> _surfaces = ['Front (PDP)', 'Back (Declarations)', 'Side (Consumer Care)', 'MRP & Date Stamp'];
+  /// Canonical codes expected by backend mock OCR / placement logic.
+  static const List<String> _canonicalSurfaces = ['FRONT', 'BACK', 'SIDE', 'MRP_AREA'];
 
   // Map of surface to captured image bytes and name
   final Map<int, Uint8List> _surfaceImages = {};
   final Map<int, String> _surfaceImageNames = {};
+
+  Future<Uint8List> _generateSamplePng({required bool hasViolation, required String surface}) async {
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder, const Rect.fromLTWH(0, 0, 450, 220));
+    final bgPaint = Paint()..color = Colors.white;
+    canvas.drawRect(const Rect.fromLTWH(0, 0, 450, 220), bgPaint);
+
+    String text;
+    if (surface == 'FRONT') {
+      text = hasViolation
+          ? "ABC Basmati Rice\nNet Wt: 5 kg\n100% Pure Indian Basmati"
+          : "ABC Premium Basmati Rice\nNet Weight: 5 kg\n100% Pure Indian Basmati";
+    } else if (surface == 'BACK') {
+      text = hasViolation
+          ? "Manufactured by: ABC Agro Foods Ltd.\nBatch: BAS-2026-04\nConsumer Care: care@abc.com"
+          : "Manufactured & Packed by: ABC Agro Foods Ltd., Plot 42, Karnal, Haryana - 132001\nPacked on: 08/2026\nBest Before: 24 months from packaging\nConsumer Care: 1800-111-2222 | care@abcagro.com\nCountry of Origin: India";
+    } else {
+      text = hasViolation
+          ? "MRP Rs 500\nDate: 08/2026"
+          : "MRP Rs 450.00 (Inclusive of all taxes)\nUnit Sale Price: Rs 90.00 / kg\nPacked on: 08/2026";
+    }
+
+    final textPainter = TextPainter(
+      text: TextSpan(
+        text: text,
+        style: const TextStyle(color: Colors.black, fontSize: 18, fontWeight: FontWeight.bold),
+      ),
+      textDirection: TextDirection.ltr,
+    );
+    textPainter.layout(maxWidth: 420);
+    textPainter.paint(canvas, const Offset(15, 15));
+
+    final picture = recorder.endRecording();
+    final img = await picture.toImage(450, 220);
+    final byteData = await img.toByteData(format: ui.ImageByteFormat.png);
+    return byteData!.buffer.asUint8List();
+  }
 
   bool _isUploading = false;
   String? _uploadStatusMessage;
@@ -73,24 +113,28 @@ class _ScannerScreenState extends ConsumerState<ScannerScreen> {
     }
   }
 
-  void _loadSamplePackage(bool hasViolation) {
-    // Generate an in-memory sample graphic for instant offline/demo testing
-    // A simple colored container represented as bytes isn't strictly required if demo backend provides default
-    // We'll create a synthetic 200x200 placeholder bitmap or byte pattern
-    final sampleBytes = Uint8List.fromList(List.generate(2048, (i) => (i * 17) % 255));
+  Future<void> _loadSamplePackage(bool hasViolation) async {
+    final frontBytes = await _generateSamplePng(hasViolation: hasViolation, surface: 'FRONT');
+    final backBytes = await _generateSamplePng(hasViolation: hasViolation, surface: 'BACK');
+    final mrpBytes = await _generateSamplePng(hasViolation: hasViolation, surface: 'MRP_AREA');
+
     setState(() {
-      _surfaceImages[0] = sampleBytes;
-      _surfaceImageNames[0] = hasViolation ? 'sample_violation_front.jpg' : 'sample_compliant_front.jpg';
-      _surfaceImages[1] = sampleBytes;
-      _surfaceImageNames[1] = 'sample_back_declarations.jpg';
+      _surfaceImages[0] = frontBytes;
+      _surfaceImageNames[0] = hasViolation ? 'sample_violation_front.png' : 'sample_compliant_front.png';
+      _surfaceImages[1] = backBytes;
+      _surfaceImageNames[1] = 'sample_back_declarations.png';
+      _surfaceImages[3] = mrpBytes;
+      _surfaceImageNames[3] = 'sample_mrp_area.png';
     });
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(hasViolation ? 'Loaded Sample Package with Rule 7 & MRP issues' : 'Loaded Standard Compliant Package Sample'),
-        backgroundColor: AppColors.secondary,
-        duration: const Duration(seconds: 2),
-      ),
-    );
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(hasViolation ? 'Loaded Sample Package with Rule 7 & MRP issues' : 'Loaded Standard Compliant Package Sample'),
+          backgroundColor: AppColors.secondary,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
   }
 
   Future<void> _runPipeline() async {
@@ -109,19 +153,22 @@ class _ScannerScreenState extends ConsumerState<ScannerScreen> {
     final client = ref.read(apiClientProvider);
 
     try {
-      // 1. Upload any captured images
+      // 1. Upload any captured images with canonical surface codes
       for (final entry in _surfaceImages.entries) {
-        final surfaceName = _surfaces[entry.key];
+        final surfaceCode = entry.key < _canonicalSurfaces.length
+            ? _canonicalSurfaces[entry.key]
+            : 'FRONT';
         final bytes = entry.value;
-        final filename = _surfaceImageNames[entry.key] ?? 'surface_${entry.key}.jpg';
+        final filename = _surfaceImageNames[entry.key] ?? 'surface_${entry.key}.png';
+        final isPng = filename.toLowerCase().endsWith('.png');
 
         final formData = FormData.fromMap({
           'file': MultipartFile.fromBytes(
             bytes,
             filename: filename,
-            contentType: MediaType('image', 'jpeg'),
+            contentType: MediaType('image', isPng ? 'png' : 'jpeg'),
           ),
-          'surface_type': surfaceName,
+          'surface_type': surfaceCode,
         });
 
         await client.uploadFile(

@@ -186,131 +186,146 @@ async def analyze_product(
     if not images:
         raise HTTPException(status_code=400, detail="Capture at least one package image before analysis.")
 
-    # Update status
+    # Update status — any failure below must reset to DRAFT so the case is not stuck.
     await repo.update(inspection_id, {"status": "ANALYSING"})
 
-    # Step 1: OCR.  Upstream vision overloads are temporary conditions, not
-    # application crashes; return an actionable retry response to the phone.
-    ocr_service = get_ocr_service()
     try:
-        ocr_results = await ocr_service.extract_text_from_images(images)
-    except RuntimeError as exc:
-        logger.warning("OCR unavailable for inspection %s: %s", inspection_id, exc)
+        # Step 1: OCR extraction
+        ocr_service = get_ocr_service()
+        try:
+            ocr_results = await ocr_service.extract_text_from_images(images)
+        except FileNotFoundError as exc:
+            logger.warning("Captured image file missing for %s: %s", inspection_id, exc)
+            raise HTTPException(status_code=400, detail="Captured package image is no longer available in server storage. Please re-capture or upload the package photo.") from exc
+        except RuntimeError as exc:
+            logger.warning("OCR unavailable for inspection %s: %s", inspection_id, exc)
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+        # Step 2: LLM Normalization
+        llm_service = get_llm_service()
+        extracted_payload = await llm_service.extract_declarations(ocr_results, product_category="Packaged Food")
+
+        # Step 3: Declaration Correctness & Consistency
+        all_ocr_blocks = []
+        for r in ocr_results:
+            all_ocr_blocks.extend(r.blocks)
+
+        if not all_ocr_blocks:
+            raise HTTPException(
+                status_code=400,
+                detail="No readable text detected on the package images. Please capture a clear, well-lit photo of the label declarations."
+            )
+
+        correctness_data = declaration_correctness_service.evaluate_correctness(
+            extracted_payload, all_ocr_blocks, is_imported=False
+        )
+
+        # Step 4: Map declarations to database records
+        declarations_records = []
+        matrix = correctness_data.get("matrix", [])
+        for idx, item in enumerate(matrix):
+            field_name = item["field_name"]
+            val = item.get("value")
+            declarations_records.append({
+                "id": f"dec-{inspection_id}-{idx + 1}",
+                "inspection_id": inspection_id,
+                "field_name": field_name,
+                "ai_value": val,
+                "verified_value": val,
+                "unit": item.get("canonical_unit"),
+                "confidence": item.get("confidence", 0.95),
+                "source_image_id": item.get("source_image_id"),
+                "source_block_id": item.get("source_block_id"),
+                "source_text": item.get("source_text"),
+                "bbox": item.get("bbox"),
+                "presence_status": "DETECTED" if item.get("presence") else "MISSING",
+                "correctness_status": item.get("correctness", "VALID"),
+                "verification_status": "PENDING",
+                "provenance": "AI_EXTRACTED"
+            })
+
+        await repo.save_declarations(inspection_id, declarations_records)
+
+        # Step 5: Rule & Compliance Engine
+        rule_context = {
+            "inspectionDate": ins.get("inspection_date") or get_utc_now_iso(),
+            "productCategory": "Packaged Food",
+            "isImported": False,
+            "isEcommerce": ins.get("inspection_type") == "ONLINE_LISTING",
+            "packageType": ins.get("package_type") or "RECTANGULAR",
+            "packageConstructionType": ins.get("package_construction_type") or "NORMAL",
+            "calibrationStatus": ins.get("calibration_status") or "NOT_CALIBRATED",
+            "pdpAreaCm2": ins.get("pdp_data", {}).get("areaCm2") if ins.get("pdp_data") else None
+        }
+
+        # This is measured from the captured photo; no default quality values are
+        # used when the image cannot be analysed.
+        readability_data = cv_service.evaluate_readability(images[0].get("original_path"))
+
+        compliance_assessment = await compliance_engine.evaluate_compliance(
+            extracted_declarations=extracted_payload.model_dump(),
+            correctness_data=correctness_data,
+            context=rule_context,
+            readability_data=readability_data,
+        )
+
+        # Convert checks and violations to records
+        check_records = []
+        for idx, c in enumerate(compliance_assessment.checks):
+            check_records.append({
+                "id": f"chk-{inspection_id}-{idx + 1}",
+                "inspection_id": inspection_id,
+                "check_type": c.check_type,
+                "field_name": c.field_name,
+                "rule_code": c.rule_code,
+                "rule_version": c.rule_version,
+                "input_value": c.input_value,
+                "expected_condition": c.expected_condition,
+                "result": c.result,
+                "confidence": c.confidence,
+                "explanation": c.explanation,
+                "source_reference": c.source_reference
+            })
+
+        violation_records = []
+        for idx, v in enumerate(compliance_assessment.potential_violations):
+            violation_records.append({
+                "id": f"viol-{inspection_id}-{idx + 1}",
+                "inspection_id": inspection_id,
+                "type": v["type"],
+                "severity": v.get("severity", "HIGH"),
+                "confidence": v.get("confidence", 0.95),
+                "status": "AI_DETECTED",
+                "provenance": "AI_DETECTED",
+                "ai_explanation": v.get("explanation"),
+                "inspector_comment": None
+            })
+
+        await repo.save_compliance_results(inspection_id, check_records, violation_records)
+
+        # Update inspection status & score
+        final_status = "NEEDS_REVIEW" if (compliance_assessment.review_count > 0 or compliance_assessment.violation_count > 0) else "READY"
+        await repo.update(inspection_id, {
+            "status": final_status,
+            "score": compliance_assessment.score,
+            "applied_rule_version": "2024.1"
+        })
+
+        return {
+            "success": True,
+            "status": final_status,
+            "score": compliance_assessment.score,
+            "assessment": compliance_assessment.model_dump(),
+            "declarations": declarations_records,
+            "correctness_matrix": matrix
+        }
+    except HTTPException:
         await repo.update(inspection_id, {"status": "DRAFT"})
-        raise HTTPException(status_code=503, detail=str(exc)) from exc
-
-    # Step 2: LLM Normalization
-    llm_service = get_llm_service()
-    extracted_payload = await llm_service.extract_declarations(ocr_results, product_category="Packaged Food")
-
-    # Step 3: Declaration Correctness & Consistency
-    all_ocr_blocks = []
-    for r in ocr_results:
-        all_ocr_blocks.extend(r.blocks)
-    
-    correctness_data = declaration_correctness_service.evaluate_correctness(
-        extracted_payload, all_ocr_blocks, is_imported=False
-    )
-
-    # Step 4: Map declarations to database records
-    declarations_records = []
-    matrix = correctness_data.get("matrix", [])
-    for idx, item in enumerate(matrix):
-        field_name = item["field_name"]
-        val = item.get("value")
-        declarations_records.append({
-            "id": f"dec-{inspection_id}-{idx + 1}",
-            "inspection_id": inspection_id,
-            "field_name": field_name,
-            "ai_value": val,
-            "verified_value": val,
-            "unit": item.get("canonical_unit"),
-            "confidence": item.get("confidence", 0.95),
-            "source_image_id": item.get("source_image_id"),
-            "source_block_id": item.get("source_block_id"),
-            "source_text": item.get("source_text"),
-            "bbox": item.get("bbox"),
-            "presence_status": "DETECTED" if item.get("presence") else "MISSING",
-            "correctness_status": item.get("correctness", "VALID"),
-            "verification_status": "PENDING",
-            "provenance": "AI_EXTRACTED"
-        })
-
-    await repo.save_declarations(inspection_id, declarations_records)
-
-    # Step 5: Rule & Compliance Engine
-    rule_context = {
-        "inspectionDate": ins.get("inspection_date") or get_utc_now_iso(),
-        "productCategory": "Packaged Food",
-        "isImported": False,
-        "isEcommerce": ins.get("inspection_type") == "ONLINE_LISTING",
-        "packageType": ins.get("package_type") or "RECTANGULAR",
-        "packageConstructionType": ins.get("package_construction_type") or "NORMAL",
-        "calibrationStatus": ins.get("calibration_status") or "NOT_CALIBRATED",
-        "pdpAreaCm2": ins.get("pdp_data", {}).get("areaCm2") if ins.get("pdp_data") else None
-    }
-
-    # This is measured from the captured photo; no default quality values are
-    # used when the image cannot be analysed.
-    readability_data = cv_service.evaluate_readability(images[0].get("original_path"))
-
-    compliance_assessment = await compliance_engine.evaluate_compliance(
-        extracted_declarations=extracted_payload.model_dump(),
-        correctness_data=correctness_data,
-        context=rule_context,
-        readability_data=readability_data,
-    )
-
-    # Convert checks and violations to records
-    check_records = []
-    for idx, c in enumerate(compliance_assessment.checks):
-        check_records.append({
-            "id": f"chk-{inspection_id}-{idx + 1}",
-            "inspection_id": inspection_id,
-            "check_type": c.check_type,
-            "field_name": c.field_name,
-            "rule_code": c.rule_code,
-            "rule_version": c.rule_version,
-            "input_value": c.input_value,
-            "expected_condition": c.expected_condition,
-            "result": c.result,
-            "confidence": c.confidence,
-            "explanation": c.explanation,
-            "source_reference": c.source_reference
-        })
-
-    violation_records = []
-    for idx, v in enumerate(compliance_assessment.potential_violations):
-        violation_records.append({
-            "id": f"viol-{inspection_id}-{idx + 1}",
-            "inspection_id": inspection_id,
-            "type": v["type"],
-            "severity": v.get("severity", "HIGH"),
-            "confidence": v.get("confidence", 0.95),
-            "status": "AI_DETECTED",
-            "provenance": "AI_DETECTED",
-            "ai_explanation": v.get("explanation"),
-            "inspector_comment": None
-        })
-
-    await repo.save_compliance_results(inspection_id, check_records, violation_records)
-
-    # Update inspection status & score
-    final_status = "NEEDS_REVIEW" if (compliance_assessment.review_count > 0 or compliance_assessment.violation_count > 0) else "READY"
-    await repo.update(inspection_id, {
-        "status": final_status,
-        "score": compliance_assessment.score,
-        "applied_rule_version": "2024.1"
-    })
-
-    return {
-        "success": True,
-        "status": final_status,
-        "score": compliance_assessment.score,
-        "assessment": compliance_assessment.model_dump(),
-        "declarations": declarations_records,
-        "correctness_matrix": matrix
-    }
+        raise
+    except Exception as exc:
+        logger.exception("Analysis failed for inspection %s", inspection_id)
+        await repo.update(inspection_id, {"status": "DRAFT"})
+        raise HTTPException(status_code=500, detail=f"Analysis failed: {exc}") from exc
 
 @router.post("/{inspection_id}/finalize", response_model=Dict[str, Any])
 async def finalize_inspection(
