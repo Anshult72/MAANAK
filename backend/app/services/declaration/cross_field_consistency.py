@@ -7,11 +7,21 @@ class CrossFieldConsistencyService:
     def detect_conflicts(declarations: List[Dict[str, Any]], ocr_blocks: List[Any]) -> List[CrossFieldConflictItem]:
         conflicts = []
 
+        def _get_block_info(block: Any) -> tuple[str, str]:
+            if hasattr(block, "text"):
+                return str(getattr(block, "text", "") or ""), str(getattr(block, "surface_type", "FRONT") or "FRONT")
+            if isinstance(block, dict):
+                return str(block.get("text", "") or ""), str(block.get("surface_type", "FRONT") or "FRONT")
+            if isinstance(block, str):
+                return block, "FRONT"
+            return "", "FRONT"
+
         # 1. Detect conflicting MRPs across surfaces
         mrp_numbers = []
         for blk in ocr_blocks:
-            text = blk.text if hasattr(blk, "text") else blk.get("text", "")
-            surface = blk.surface_type if hasattr(blk, "surface_type") else blk.get("surface_type", "FRONT")
+            text, surface = _get_block_info(blk)
+            if not text:
+                continue
             matches = re.findall(r"(?:MRP|Rs\.?|₹)\s*(\d+(?:\.\d{1,2})?)", text, re.IGNORECASE)
             for m in matches:
                 try:
@@ -36,8 +46,9 @@ class CrossFieldConsistencyService:
         # 2. Detect conflicting net quantities
         qty_values = []
         for blk in ocr_blocks:
-            text = blk.text if hasattr(blk, "text") else blk.get("text", "")
-            surface = blk.surface_type if hasattr(blk, "surface_type") else blk.get("surface_type", "FRONT")
+            text, surface = _get_block_info(blk)
+            if not text:
+                continue
             matches = re.findall(r"(?:Net\s*(?:Qty|Weight|Volume)?\s*:?\s*)(\d+(?:\.\d+)?)\s*(kg|g|ml|l)", text, re.IGNORECASE)
             for val, unit in matches:
                 qty_values.append({"surface": surface, "value": f"{val} {unit.upper()}", "text": text})

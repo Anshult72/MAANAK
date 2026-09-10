@@ -23,7 +23,9 @@ class ConditionEvaluator:
         return None
 
     @classmethod
-    def evaluate_condition(cls, condition: Dict[str, Any], context: Dict[str, Any]) -> bool:
+    def evaluate_condition(cls, condition: Any, context: Dict[str, Any]) -> bool:
+        if not isinstance(condition, dict) or not isinstance(context, dict):
+            return False
         field = condition.get("field")
         op = (condition.get("operator") or "EQUALS").upper()
         target_val = condition.get("value")
@@ -104,13 +106,19 @@ class ConditionEvaluator:
         return False
 
     @classmethod
-    def evaluate_group(cls, condition_group: Dict[str, Any], context: Dict[str, Any]) -> bool:
+    def evaluate_group(cls, condition_group: Any, context: Dict[str, Any]) -> bool:
         if not condition_group:
             return True
+        if isinstance(condition_group, list):
+            results = [cls.evaluate_condition(c, context) for c in condition_group if isinstance(c, dict)]
+            return all(results) if results else True
+        if not isinstance(condition_group, dict):
+            return True
+
         group_type = (condition_group.get("conditionGroup") or "ALL").upper()
         conditions = condition_group.get("conditions", [])
 
-        if not conditions:
+        if not conditions or not isinstance(conditions, list):
             return True
 
         results = [cls.evaluate_condition(c, context) for c in conditions]

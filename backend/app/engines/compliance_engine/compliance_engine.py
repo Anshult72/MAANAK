@@ -18,8 +18,12 @@ class ComplianceEngine:
         review_items: List[Dict[str, Any]] = []
         violations: List[Dict[str, Any]] = []
 
-        matrix = correctness_data.get("matrix", [])
-        matrix_by_field = {item["field_name"]: item for item in matrix}
+        matrix = correctness_data.get("matrix", []) if isinstance(correctness_data, dict) else []
+        matrix_by_field = {
+            item["field_name"]: item
+            for item in matrix
+            if isinstance(item, dict) and "field_name" in item
+        }
 
         # The correctness screen groups manufacturer name and address into one
         # display card.  Legal-rule evaluation must still use the individual
@@ -221,8 +225,10 @@ class ComplianceEngine:
         ))
 
         # 4. Cross-Field Conflicts
-        conflicts = correctness_data.get("conflicts", [])
+        conflicts = correctness_data.get("conflicts", []) if isinstance(correctness_data, dict) else []
         for conf in conflicts:
+            if not isinstance(conf, dict):
+                continue
             checks.append(ComplianceCheckResult(
                 check_type="CROSS_FIELD_CONSISTENCY",
                 field_name=conf.get("field_name", "general"),

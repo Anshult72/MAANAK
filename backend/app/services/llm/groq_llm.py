@@ -37,16 +37,33 @@ class GroqLlmService(ILlmService):
                 temperature=0,
                 max_completion_tokens=1600,
             )
-            raw_dict = json.loads(response.choices[0].message.content or "{}")
-            if isinstance(raw_dict.get("declarations"), dict):
-                raw_dict = raw_dict["declarations"]
+            parsed = json.loads(response.choices[0].message.content or "{}")
+            if isinstance(parsed, dict):
+                if isinstance(parsed.get("declarations"), dict):
+                    raw_dict = parsed["declarations"]
+                elif isinstance(parsed.get("declarations"), list):
+                    raw_dict = {
+                        item["field_name"]: item
+                        for item in parsed["declarations"]
+                        if isinstance(item, dict) and "field_name" in item
+                    }
+                else:
+                    raw_dict = parsed
+            elif isinstance(parsed, list):
+                raw_dict = {
+                    item["field_name"]: item
+                    for item in parsed
+                    if isinstance(item, dict) and "field_name" in item
+                }
+            else:
+                raw_dict = {}
         except Exception:
             # Preserve the evidence-first behaviour even if a text model is busy.
             return GeminiLlmService._extract_from_real_ocr(ocr_results)
 
         constructed: Dict[str, Any] = {}
         for field_name in ALL_DECLARATION_FIELDS:
-            value = raw_dict.get(field_name)
+            value = raw_dict.get(field_name) if isinstance(raw_dict, dict) else None
             if isinstance(value, dict) and value.get("value"):
                 source_id = value.get("source_block_id")
                 source = block_map.get(source_id)

@@ -306,6 +306,8 @@ class NeonPostgresRepository(
             await session.execute(delete(Violation).where(Violation.inspection_id == inspection_id))
             await session.execute(delete(ComplianceCheck).where(ComplianceCheck.inspection_id == inspection_id))
             for c in checks:
+                if not isinstance(c, dict):
+                    continue
                 check_data = {
                     "id": c.get("id") or str(uuid.uuid4()),
                     "inspection_id": c.get("inspection_id") or inspection_id,
@@ -321,6 +323,8 @@ class NeonPostgresRepository(
                 }
                 session.add(ComplianceCheck(**check_data))
             for v in violations:
+                if not isinstance(v, dict):
+                    continue
                 viol_data = {
                     "id": v.get("id") or str(uuid.uuid4()),
                     "inspection_id": v.get("inspection_id") or inspection_id,

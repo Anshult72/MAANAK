@@ -69,23 +69,42 @@ class GroqVisionOcrService(IOcrService):
 
         content = response.choices[0].message.content or "{}"
         try:
-            lines = json.loads(content).get("lines", [])
-        except json.JSONDecodeError as error:
+            parsed = json.loads(content)
+        except (json.JSONDecodeError, Exception) as error:
             raise RuntimeError("Groq returned an unreadable OCR response. Please retry the analysis.") from error
 
-        blocks = [
-            OcrBlock(
-                block_id=f"blk-{image_id}-{index + 1}",
-                text=str(line.get("text", "")).strip(),
-                confidence=float(line.get("confidence", 0.85)),
-                # Groq text extraction does not return reliable pixel boxes.
-                bbox=BoundingBox(x=0, y=0, width=1, height=1),
-                image_id=image_id,
-                surface_type=surface_type,
-            )
-            for index, line in enumerate(lines)
-            if isinstance(line, dict) and str(line.get("text", "")).strip()
-        ]
+        if isinstance(parsed, list):
+            lines = parsed
+        elif isinstance(parsed, dict):
+            lines = parsed.get("lines", [])
+            if not lines and "text" in parsed:
+                lines = [parsed]
+        else:
+            lines = []
+
+        blocks = []
+        for index, line in enumerate(lines):
+            text = ""
+            conf = 0.85
+            if isinstance(line, dict):
+                text = str(line.get("text", "")).strip()
+                conf = float(line.get("confidence", 0.85))
+            elif isinstance(line, str):
+                text = line.strip()
+            elif isinstance(line, (list, tuple)):
+                text = " ".join(str(item).strip() for item in line if str(item).strip())
+
+            if text:
+                blocks.append(
+                    OcrBlock(
+                        block_id=f"blk-{image_id}-{index + 1}",
+                        text=text,
+                        confidence=conf,
+                        bbox=BoundingBox(x=0, y=0, width=1, height=1),
+                        image_id=image_id,
+                        surface_type=surface_type,
+                    )
+                )
         if not blocks:
             return OcrResult(
                 raw_text="",

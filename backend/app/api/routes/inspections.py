@@ -247,6 +247,7 @@ async def analyze_product(
         await repo.save_declarations(inspection_id, declarations_records)
 
         # Step 5: Rule & Compliance Engine
+        pdp_info = ins.get("pdp_data")
         rule_context = {
             "inspectionDate": ins.get("inspection_date") or get_utc_now_iso(),
             "productCategory": "Packaged Food",
@@ -255,12 +256,13 @@ async def analyze_product(
             "packageType": ins.get("package_type") or "RECTANGULAR",
             "packageConstructionType": ins.get("package_construction_type") or "NORMAL",
             "calibrationStatus": ins.get("calibration_status") or "NOT_CALIBRATED",
-            "pdpAreaCm2": ins.get("pdp_data", {}).get("areaCm2") if ins.get("pdp_data") else None
+            "pdpAreaCm2": pdp_info.get("areaCm2") if isinstance(pdp_info, dict) else None
         }
 
         # This is measured from the captured photo; no default quality values are
         # used when the image cannot be analysed.
-        readability_data = cv_service.evaluate_readability(images[0].get("original_path"))
+        first_img_path = images[0].get("original_path") if isinstance(images[0], dict) else None
+        readability_data = cv_service.evaluate_readability(first_img_path)
 
         compliance_assessment = await compliance_engine.evaluate_compliance(
             extracted_declarations=extracted_payload.model_dump(),
@@ -289,15 +291,25 @@ async def analyze_product(
 
         violation_records = []
         for idx, v in enumerate(compliance_assessment.potential_violations):
+            if isinstance(v, dict):
+                v_type = v.get("type", "UNKNOWN")
+                v_sev = v.get("severity", "HIGH")
+                v_conf = v.get("confidence", 0.95)
+                v_exp = v.get("explanation") or v.get("ai_explanation")
+            else:
+                v_type = str(v)
+                v_sev = "HIGH"
+                v_conf = 0.95
+                v_exp = str(v)
             violation_records.append({
                 "id": f"viol-{inspection_id}-{idx + 1}",
                 "inspection_id": inspection_id,
-                "type": v["type"],
-                "severity": v.get("severity", "HIGH"),
-                "confidence": v.get("confidence", 0.95),
+                "type": v_type,
+                "severity": v_sev,
+                "confidence": v_conf,
                 "status": "AI_DETECTED",
                 "provenance": "AI_DETECTED",
-                "ai_explanation": v.get("explanation"),
+                "ai_explanation": v_exp,
                 "inspector_comment": None
             })
 

@@ -43,12 +43,43 @@ Do not infer text not visible. Keep every printed line separate."""
             raise RuntimeError(
                 "Live image OCR is temporarily unavailable. Please retry the analysis; no demo data was used."
             ) from last_error
-        lines = json.loads(response.text).get("lines", [])
-        blocks = [OcrBlock(
-            block_id=f"blk-{image_id}-{index + 1}", text=str(line.get("text", "")).strip(),
-            confidence=float(line.get("confidence", 0.85)), bbox=BoundingBox(x=0, y=0, width=1, height=1),
-            image_id=image_id, surface_type=surface_type,
-        ) for index, line in enumerate(lines) if str(line.get("text", "")).strip()]
+        try:
+            parsed = json.loads(response.text)
+        except Exception as error:
+            raise RuntimeError("Gemini returned an unreadable OCR response.") from error
+
+        if isinstance(parsed, list):
+            lines = parsed
+        elif isinstance(parsed, dict):
+            lines = parsed.get("lines", [])
+            if not lines and "text" in parsed:
+                lines = [parsed]
+        else:
+            lines = []
+
+        blocks = []
+        for index, line in enumerate(lines):
+            text = ""
+            conf = 0.85
+            if isinstance(line, dict):
+                text = str(line.get("text", "")).strip()
+                conf = float(line.get("confidence", 0.85))
+            elif isinstance(line, str):
+                text = line.strip()
+            elif isinstance(line, (list, tuple)):
+                text = " ".join(str(item).strip() for item in line if str(item).strip())
+
+            if text:
+                blocks.append(
+                    OcrBlock(
+                        block_id=f"blk-{image_id}-{index + 1}",
+                        text=text,
+                        confidence=conf,
+                        bbox=BoundingBox(x=0, y=0, width=1, height=1),
+                        image_id=image_id,
+                        surface_type=surface_type,
+                    )
+                )
         if not blocks:
             raise ValueError("No readable text was detected in the captured image.")
         return OcrResult(raw_text="\n".join(block.text for block in blocks), blocks=blocks,
