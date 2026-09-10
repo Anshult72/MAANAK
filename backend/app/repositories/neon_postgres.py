@@ -2,6 +2,7 @@ from typing import Optional, List, Dict, Any
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update, delete, or_
 from app.repositories.interfaces import (
+    IUserRepository, IProductRepository, IInspectionRepository,
     IRuleRepository, IReportRepository, IAuditLogRepository
 )
 from app.models.entities import (
