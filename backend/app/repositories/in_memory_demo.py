@@ -752,6 +752,11 @@ class DemoInMemoryRepository(
             }
         ]
 
+        # 9. Legal Documents, Amendments, and Rule Audit Logs
+        self.legal_documents: Dict[str, Dict[str, Any]] = {}
+        self.rule_amendments: Dict[str, Dict[str, Any]] = {}
+        self.rule_audit_logs: List[Dict[str, Any]] = []
+
     # --- IUserRepository ---
     async def get_by_email(self, email: str) -> Optional[Dict[str, Any]]:
         for user in self.users.values():
@@ -916,14 +921,56 @@ class DemoInMemoryRepository(
         for r in self.rules.values():
             if active_only and not r.get("active"):
                 continue
-            if category and r.get("category") != category:
-                continue
-            res.append(copy.deepcopy(r))
+            if category and category.upper() != "ALL":
+                norm_cat = category.strip().upper().replace(" ", "_").replace("/", "_")
+                rule_cat = (r.get("category") or "").upper()
+                if "DECLARATION" in norm_cat and "DECLARATION" not in rule_cat:
+                    continue
+                elif ("PDP" in norm_cat or "FONT" in norm_cat) and ("PDP" not in rule_cat and "FONT" not in rule_cat):
+                    continue
+                elif "MRP" in norm_cat and "MRP" not in rule_cat:
+                    continue
+                elif ("ECOM" in norm_cat or "E_COMMERCE" in norm_cat) and ("ECOM" not in rule_cat and "E_COMMERCE" not in rule_cat):
+                    continue
+                elif "OTHER" in norm_cat and rule_cat in ["DECLARATIONS", "PDP_FONT_SIZE", "MRP", "E_COMMERCE", "MANDATORY_DECLARATIONS"]:
+                    continue
+                elif norm_cat not in ["DECLARATIONS", "PDP_FONT_SIZE", "MRP", "E_COMMERCE", "OTHER"] and rule_cat != norm_cat:
+                    continue
+            
+            latest_v = r.get("versions", [])[-1] if r.get("versions") else None
+            r_copy = copy.deepcopy(r)
+            r_copy["current_version"] = latest_v["version"] if latest_v else "1.0"
+            r_copy["current_version_id"] = latest_v["id"] if latest_v else None
+            r_copy["status"] = latest_v.get("status", "ACTIVE") if latest_v else ("ACTIVE" if r.get("active") else "INACTIVE")
+            r_copy["effective_from"] = latest_v.get("effective_from") if latest_v else None
+            r_copy["source_name"] = latest_v.get("source_name", "Department of Consumer Affairs") if latest_v else "Department of Consumer Affairs"
+            r_copy["source_reference"] = latest_v.get("source_reference", r.get("statutory_reference", "LM Rules 2011")) if latest_v else r.get("statutory_reference", "LM Rules 2011")
+            r_copy["source_url"] = latest_v.get("source_url", "https://consumeraffairs.gov.in/pages/legal-metrology-act") if latest_v else "https://consumeraffairs.gov.in/pages/legal-metrology-act"
+            r_copy["coverage_status"] = r.get("coverage_status", "FULLY_IMPLEMENTED")
+            r_copy["versions_count"] = len(r.get("versions", []))
+            res.append(r_copy)
         return res
 
     async def get_rule_by_id(self, rule_id: str) -> Optional[Dict[str, Any]]:
         r = self.rules.get(rule_id)
-        return copy.deepcopy(r) if r else None
+        if not r:
+            for item in self.rules.values():
+                if item.get("code") == rule_id or item.get("id") == rule_id:
+                    r = item
+                    break
+        if not r:
+            return None
+        r_copy = copy.deepcopy(r)
+        latest_v = r_copy.get("versions", [])[-1] if r_copy.get("versions") else None
+        r_copy["current_version"] = latest_v["version"] if latest_v else "1.0"
+        r_copy["status"] = latest_v.get("status", "ACTIVE") if latest_v else ("ACTIVE" if r_copy.get("active") else "INACTIVE")
+        r_copy["effective_from"] = latest_v.get("effective_from") if latest_v else None
+        r_copy["coverage_status"] = r_copy.get("coverage_status", "FULLY_IMPLEMENTED")
+        r_copy["source_name"] = latest_v.get("source_name", "Department of Consumer Affairs") if latest_v else "Department of Consumer Affairs"
+        r_copy["source_reference"] = latest_v.get("source_reference", r_copy.get("statutory_reference", "LM Rules 2011")) if latest_v else r_copy.get("statutory_reference", "LM Rules 2011")
+        r_copy["source_url"] = latest_v.get("source_url", "https://consumeraffairs.gov.in/pages/legal-metrology-act") if latest_v else "https://consumeraffairs.gov.in/pages/legal-metrology-act"
+        r_copy["amendments"] = [copy.deepcopy(a) for a in self.rule_amendments.values() if a.get("rule_id") == r_copy["id"]]
+        return r_copy
 
     async def get_active_versions_for_date(self, inspection_date_iso: str) -> List[Dict[str, Any]]:
         active_versions = []
@@ -933,14 +980,22 @@ class DemoInMemoryRepository(
             for v in r.get("versions", []):
                 eff_from = v.get("effective_from")
                 eff_to = v.get("effective_to")
+                status = v.get("status", "ACTIVE")
+                if status not in ["ACTIVE", "APPROVED", "SCHEDULED"]:
+                    continue
                 if eff_from and inspection_date_iso < eff_from:
                     continue
-                if eff_to and inspection_date_iso > eff_to:
+                if eff_to and inspection_date_iso >= eff_to:
                     continue
                 v_copy = copy.deepcopy(v)
                 v_copy["rule_code"] = r["code"]
                 v_copy["rule_title"] = r["title"]
                 v_copy["rule_category"] = r["category"]
+                v_copy["statutory_reference"] = r.get("statutory_reference") or v.get("source_reference")
+                v_copy["validation_type"] = r.get("validation_type")
+                v_copy["parameters"] = r.get("parameters_json") or {}
+                v_copy["evidence_requirements"] = r.get("evidence_requirements_json") or []
+                v_copy["coverage_status"] = r.get("coverage_status") or "FULLY_IMPLEMENTED"
                 active_versions.append(v_copy)
         return active_versions
 
@@ -958,14 +1013,64 @@ class DemoInMemoryRepository(
     async def create_version(self, rule_id: str, version_data: Dict[str, Any]) -> Dict[str, Any]:
         rule = self.rules.get(rule_id)
         if not rule:
+            for item in self.rules.values():
+                if item.get("code") == rule_id or item.get("id") == rule_id:
+                    rule = item
+                    break
+        if not rule:
             raise ValueError(f"Rule {rule_id} not found")
-        v_id = version_data.get("id") or f"ver-{rule_id}-{len(rule['versions']) + 1}"
+        v_id = version_data.get("id") or f"ver-{rule['id']}-{len(rule['versions']) + 1}"
         version_data["id"] = v_id
-        version_data["rule_id"] = rule_id
+        version_data["rule_id"] = rule["id"]
         if "created_at" not in version_data:
             version_data["created_at"] = get_now_iso()
         rule["versions"].append(copy.deepcopy(version_data))
         return copy.deepcopy(version_data)
+
+    async def list_rule_versions(self, rule_id: str) -> List[Dict[str, Any]]:
+        rule = await self.get_rule_by_id(rule_id)
+        return copy.deepcopy(rule.get("versions", [])) if rule else []
+
+    async def list_rule_amendments(self, rule_id: str) -> List[Dict[str, Any]]:
+        rule = await self.get_rule_by_id(rule_id)
+        target_id = rule["id"] if rule else rule_id
+        return [copy.deepcopy(a) for a in self.rule_amendments.values() if a.get("rule_id") == target_id]
+
+    async def approve_rule_version(self, rule_id: str, version_id: str, approved_by: str) -> Optional[Dict[str, Any]]:
+        rule = await self.get_rule_by_id(rule_id)
+        if not rule:
+            return None
+        for v in rule.get("versions", []):
+            if v["id"] == version_id:
+                eff_from = v.get("effective_from")
+                now = get_now_iso()
+                is_future = eff_from and eff_from > now
+                v["status"] = "SCHEDULED" if is_future else "ACTIVE"
+                v["approved_by"] = approved_by
+                v["approved_at"] = now
+                return copy.deepcopy(v)
+        return None
+
+    async def list_legal_documents(self) -> List[Dict[str, Any]]:
+        return list(self.legal_documents.values())
+
+    async def save_legal_document(self, doc_data: Dict[str, Any]) -> Dict[str, Any]:
+        self.legal_documents[doc_data["id"]] = copy.deepcopy(doc_data)
+        return copy.deepcopy(doc_data)
+
+    async def save_amendment(self, amendment_data: Dict[str, Any]) -> Dict[str, Any]:
+        a_id = amendment_data.get("id") or f"amend-{len(self.rule_amendments) + 1}"
+        amendment_data["id"] = a_id
+        self.rule_amendments[a_id] = copy.deepcopy(amendment_data)
+        return copy.deepcopy(amendment_data)
+
+    async def save_rule_audit_log(self, audit_data: Dict[str, Any]) -> Dict[str, Any]:
+        l_id = audit_data.get("id") or f"rule-log-{len(self.rule_audit_logs) + 1}"
+        audit_data["id"] = l_id
+        if "timestamp" not in audit_data:
+            audit_data["timestamp"] = get_now_iso()
+        self.rule_audit_logs.append(copy.deepcopy(audit_data))
+        return copy.deepcopy(audit_data)
 
     async def get_rule_coverage(self) -> List[Dict[str, Any]]:
         return copy.deepcopy(self.rule_coverage)

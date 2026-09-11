@@ -7,7 +7,8 @@ from app.repositories.interfaces import (
 )
 from app.models.entities import (
     User, Product, Inspection, InspectionImage, Declaration, Rule, RuleVersion,
-    ComplianceCheck, Violation, Evidence, Report, AuditLog, LabelVersion, RuleCoverage
+    ComplianceCheck, Violation, Evidence, Report, AuditLog, LabelVersion, RuleCoverage,
+    LegalDocument, RuleAmendment, RuleAuditLog
 )
 from app.core.database import AsyncSessionLocal
 import uuid
@@ -365,48 +366,318 @@ class NeonPostgresRepository(
             stmt = select(Rule)
             if active_only:
                 stmt = stmt.where(Rule.active == True)
-            if category:
-                stmt = stmt.where(Rule.category == category)
+            if category and category.upper() != "ALL":
+                # Support user-friendly categories and DB enum values
+                norm_cat = category.strip().upper().replace(" ", "_").replace("/", "_")
+                if "DECLARATION" in norm_cat:
+                    stmt = stmt.where(Rule.category == "DECLARATIONS")
+                elif "PDP" in norm_cat or "FONT" in norm_cat:
+                    stmt = stmt.where(Rule.category == "PDP_FONT_SIZE")
+                elif "MRP" in norm_cat:
+                    stmt = stmt.where(Rule.category == "MRP")
+                elif "ECOM" in norm_cat or "E_COMMERCE" in norm_cat:
+                    stmt = stmt.where(Rule.category == "E_COMMERCE")
+                elif "OTHER" in norm_cat:
+                    stmt = stmt.where(Rule.category.notin_(["DECLARATIONS", "PDP_FONT_SIZE", "MRP", "E_COMMERCE"]))
+                else:
+                    stmt = stmt.where(Rule.category == norm_cat)
+
             res = await session.execute(stmt)
             rules = res.scalars().all()
-            return [{"id": r.id, "code": r.code, "title": r.title, "category": r.category, "active": r.active} for r in rules]
+            
+            output = []
+            for r in rules:
+                # Retrieve current active version
+                v_stmt = select(RuleVersion).where(RuleVersion.rule_id == r.id).order_by(RuleVersion.effective_from.desc())
+                v_res = await session.execute(v_stmt)
+                all_v = v_res.scalars().all()
+                latest_v = all_v[0] if all_v else None
+
+                output.append({
+                    "id": r.id,
+                    "code": r.code,
+                    "statutory_reference": r.statutory_reference or "Legal Metrology Rules, 2011",
+                    "title": r.title,
+                    "description": r.description,
+                    "category": r.category,
+                    "validation_type": r.validation_type,
+                    "coverage_status": r.coverage_status or "FULLY_IMPLEMENTED",
+                    "parameters": r.parameters_json or {},
+                    "evidence_requirements": r.evidence_requirements_json or [],
+                    "active": r.active,
+                    "current_version": latest_v.version if latest_v else "1.0",
+                    "current_version_id": latest_v.id if latest_v else None,
+                    "status": latest_v.status if latest_v else ("ACTIVE" if r.active else "INACTIVE"),
+                    "effective_from": latest_v.effective_from.isoformat() if latest_v and latest_v.effective_from else None,
+                    "effective_to": latest_v.effective_to.isoformat() if latest_v and latest_v.effective_to else None,
+                    "source_name": latest_v.source_name if latest_v else "Department of Consumer Affairs",
+                    "source_reference": latest_v.source_reference if latest_v else (r.statutory_reference or "LM Rules 2011"),
+                    "source_url": latest_v.source_url if latest_v else "https://consumeraffairs.gov.in/pages/legal-metrology-act",
+                    "versions_count": len(all_v)
+                })
+            return output
 
     async def get_rule_by_id(self, rule_id: str) -> Optional[Dict[str, Any]]:
         async with await self._get_session() as session:
-            stmt = select(Rule).where(Rule.id == rule_id)
+            stmt = select(Rule).where(or_(Rule.id == rule_id, Rule.code == rule_id))
             res = await session.execute(stmt)
             r = res.scalar_one_or_none()
             if not r:
                 return None
-            return {"id": r.id, "code": r.code, "title": r.title, "category": r.category, "active": r.active}
+            
+            v_stmt = select(RuleVersion).where(RuleVersion.rule_id == r.id).order_by(RuleVersion.effective_from.desc())
+            v_res = await session.execute(v_stmt)
+            versions = v_res.scalars().all()
+            latest_v = versions[0] if versions else None
+
+            a_stmt = select(RuleAmendment).where(RuleAmendment.rule_id == r.id).order_by(RuleAmendment.effective_from.desc())
+            a_res = await session.execute(a_stmt)
+            amendments = a_res.scalars().all()
+
+            return {
+                "id": r.id,
+                "code": r.code,
+                "statutory_reference": r.statutory_reference or "Legal Metrology Rules, 2011",
+                "title": r.title,
+                "description": r.description,
+                "category": r.category,
+                "validation_type": r.validation_type,
+                "coverage_status": r.coverage_status or "FULLY_IMPLEMENTED",
+                "parameters": r.parameters_json or {},
+                "evidence_requirements": r.evidence_requirements_json or [],
+                "active": r.active,
+                "current_version": latest_v.version if latest_v else "1.0",
+                "status": latest_v.status if latest_v else ("ACTIVE" if r.active else "INACTIVE"),
+                "effective_from": latest_v.effective_from.isoformat() if latest_v and latest_v.effective_from else None,
+                "effective_to": latest_v.effective_to.isoformat() if latest_v and latest_v.effective_to else None,
+                "source_name": latest_v.source_name if latest_v else "Department of Consumer Affairs",
+                "source_reference": latest_v.source_reference if latest_v else (r.statutory_reference or "LM Rules 2011"),
+                "source_url": latest_v.source_url if latest_v else "https://consumeraffairs.gov.in/pages/legal-metrology-act",
+                "versions": [
+                    {
+                        "id": v.id,
+                        "rule_id": v.rule_id,
+                        "version": v.version,
+                        "version_label": v.version_label or f"Version {v.version}",
+                        "description": v.description,
+                        "conditions": v.conditions,
+                        "thresholds": v.thresholds,
+                        "severity": v.severity,
+                        "status": v.status,
+                        "source_name": v.source_name,
+                        "source_reference": v.source_reference,
+                        "source_url": v.source_url,
+                        "source_document_id": v.source_document_id,
+                        "publication_date": v.publication_date.isoformat() if v.publication_date else None,
+                        "effective_from": v.effective_from.isoformat() if v.effective_from else None,
+                        "effective_to": v.effective_to.isoformat() if v.effective_to else None,
+                        "approved_by": v.approved_by,
+                        "approved_at": v.approved_at.isoformat() if v.approved_at else None,
+                    } for v in versions
+                ],
+                "amendments": [
+                    {
+                        "id": a.id,
+                        "previous_version_id": a.previous_version_id,
+                        "new_version_id": a.new_version_id,
+                        "amendment_type": a.amendment_type,
+                        "amendment_summary": a.amendment_summary,
+                        "source_document_id": a.source_document_id,
+                        "effective_from": a.effective_from.isoformat() if a.effective_from else None,
+                    } for a in amendments
+                ]
+            }
 
     async def get_active_versions_for_date(self, inspection_date_iso: str) -> List[Dict[str, Any]]:
+        dt = _parse_dt(inspection_date_iso)
+        if isinstance(dt, str):
+            dt = datetime.fromisoformat(dt.replace("Z", "+00:00"))
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+
         async with await self._get_session() as session:
-            stmt = select(RuleVersion).join(Rule).where(Rule.active == True)
+            stmt = (
+                select(RuleVersion, Rule)
+                .join(Rule, RuleVersion.rule_id == Rule.id)
+                .where(
+                    Rule.active == True,
+                    RuleVersion.effective_from <= dt,
+                    or_(RuleVersion.effective_to == None, RuleVersion.effective_to > dt),
+                    RuleVersion.status.in_(["ACTIVE", "APPROVED", "SCHEDULED"])
+                )
+            )
             res = await session.execute(stmt)
-            versions = res.scalars().all()
-            return [
-                {
-                    "id": v.id, "rule_id": v.rule_id, "version": v.version,
-                    "conditions": v.conditions, "thresholds": v.thresholds,
-                    "severity": v.severity, "source_reference": v.source_reference,
+            pairs = res.all()
+            
+            output = []
+            for v, r in pairs:
+                output.append({
+                    "id": v.id,
+                    "rule_id": v.rule_id,
+                    "rule_code": r.code,
+                    "rule_title": r.title,
+                    "rule_category": r.category,
+                    "statutory_reference": r.statutory_reference or v.source_reference,
+                    "validation_type": r.validation_type,
+                    "parameters": r.parameters_json or {},
+                    "evidence_requirements": r.evidence_requirements_json or [],
+                    "coverage_status": r.coverage_status or "FULLY_IMPLEMENTED",
+                    "version": v.version,
+                    "version_label": v.version_label or f"Version {v.version}",
+                    "conditions": v.conditions,
+                    "thresholds": v.thresholds,
+                    "severity": v.severity,
+                    "status": v.status,
+                    "source_name": v.source_name,
+                    "source_reference": v.source_reference,
+                    "source_url": v.source_url,
+                    "effective_from": v.effective_from.isoformat() if v.effective_from else None,
+                    "effective_to": v.effective_to.isoformat() if v.effective_to else None,
                     "is_demo_rule": v.is_demo_rule
-                } for v in versions
-            ]
+                })
+            return output
 
     async def create_rule(self, rule_data: Dict[str, Any]) -> Dict[str, Any]:
         async with await self._get_session() as session:
-            r = Rule(**{k: v for k, v in rule_data.items() if k != "versions"})
+            clean_data = dict(rule_data)
+            for dt_col in ["created_at", "updated_at"]:
+                if dt_col in clean_data:
+                    clean_data[dt_col] = _parse_dt(clean_data[dt_col])
+            clean_data = {k: v for k, v in clean_data.items() if k not in ["versions", "amendments"]}
+            r = Rule(**clean_data)
             session.add(r)
             await session.commit()
             return rule_data
 
     async def create_version(self, rule_id: str, version_data: Dict[str, Any]) -> Dict[str, Any]:
         async with await self._get_session() as session:
-            v = RuleVersion(**version_data)
+            clean_data = dict(version_data)
+            clean_data["rule_id"] = rule_id
+            for dt_col in ["effective_from", "effective_to", "publication_date", "approved_at", "created_at"]:
+                if dt_col in clean_data and clean_data[dt_col]:
+                    clean_data[dt_col] = _parse_dt(clean_data[dt_col])
+            v = RuleVersion(**clean_data)
             session.add(v)
             await session.commit()
             return version_data
+
+    async def list_rule_versions(self, rule_id: str) -> List[Dict[str, Any]]:
+        async with await self._get_session() as session:
+            stmt = select(RuleVersion).where(or_(RuleVersion.rule_id == rule_id, RuleVersion.id == rule_id)).order_by(RuleVersion.effective_from.desc())
+            res = await session.execute(stmt)
+            versions = res.scalars().all()
+            return [
+                {
+                    "id": v.id, "rule_id": v.rule_id, "version": v.version,
+                    "version_label": v.version_label, "description": v.description,
+                    "conditions": v.conditions, "thresholds": v.thresholds,
+                    "severity": v.severity, "status": v.status,
+                    "source_name": v.source_name, "source_reference": v.source_reference,
+                    "source_url": v.source_url,
+                    "effective_from": v.effective_from.isoformat() if v.effective_from else None,
+                    "effective_to": v.effective_to.isoformat() if v.effective_to else None,
+                } for v in versions
+            ]
+
+    async def list_rule_amendments(self, rule_id: str) -> List[Dict[str, Any]]:
+        async with await self._get_session() as session:
+            stmt = select(RuleAmendment).where(RuleAmendment.rule_id == rule_id).order_by(RuleAmendment.effective_from.desc())
+            res = await session.execute(stmt)
+            amendments = res.scalars().all()
+            return [
+                {
+                    "id": a.id, "rule_id": a.rule_id, "previous_version_id": a.previous_version_id,
+                    "new_version_id": a.new_version_id, "amendment_type": a.amendment_type,
+                    "amendment_summary": a.amendment_summary, "source_document_id": a.source_document_id,
+                    "effective_from": a.effective_from.isoformat() if a.effective_from else None,
+                } for a in amendments
+            ]
+
+    async def approve_rule_version(self, rule_id: str, version_id: str, approved_by: str) -> Optional[Dict[str, Any]]:
+        async with await self._get_session() as session:
+            stmt = select(RuleVersion).where(RuleVersion.id == version_id)
+            res = await session.execute(stmt)
+            v = res.scalar_one_or_none()
+            if not v:
+                return None
+            
+            now_utc = get_now_utc()
+            is_future = v.effective_from and v.effective_from > now_utc
+            v.status = "SCHEDULED" if is_future else "ACTIVE"
+            v.approved_by = approved_by
+            v.approved_at = now_utc
+            await session.commit()
+            return {
+                "id": v.id, "rule_id": v.rule_id, "version": v.version,
+                "status": v.status, "approved_by": v.approved_by,
+                "approved_at": v.approved_at.isoformat() if v.approved_at else None
+            }
+
+    async def list_legal_documents(self) -> List[Dict[str, Any]]:
+        async with await self._get_session() as session:
+            stmt = select(LegalDocument).order_by(LegalDocument.effective_date.desc())
+            res = await session.execute(stmt)
+            docs = res.scalars().all()
+            return [
+                {
+                    "id": d.id, "title": d.title, "document_type": d.document_type,
+                    "source_url": d.source_url, "source_authority": d.source_authority,
+                    "notification_number": d.notification_number,
+                    "publication_date": d.publication_date.isoformat() if d.publication_date else None,
+                    "effective_date": d.effective_date.isoformat() if d.effective_date else None,
+                    "document_hash": d.document_hash, "document_version": d.document_version,
+                    "status": d.status
+                } for d in docs
+            ]
+
+    async def save_legal_document(self, doc_data: Dict[str, Any]) -> Dict[str, Any]:
+        async with await self._get_session() as session:
+            clean_data = dict(doc_data)
+            for dt_col in ["publication_date", "effective_date", "created_at"]:
+                if dt_col in clean_data and clean_data[dt_col]:
+                    clean_data[dt_col] = _parse_dt(clean_data[dt_col])
+            
+            stmt = select(LegalDocument).where(LegalDocument.id == clean_data["id"])
+            res = await session.execute(stmt)
+            existing = res.scalar_one_or_none()
+            if existing:
+                for k, v in clean_data.items():
+                    if hasattr(existing, k):
+                        setattr(existing, k, v)
+            else:
+                d = LegalDocument(**clean_data)
+                session.add(d)
+            await session.commit()
+            return doc_data
+
+    async def save_amendment(self, amendment_data: Dict[str, Any]) -> Dict[str, Any]:
+        async with await self._get_session() as session:
+            clean_data = dict(amendment_data)
+            for dt_col in ["effective_from", "created_at"]:
+                if dt_col in clean_data and clean_data[dt_col]:
+                    clean_data[dt_col] = _parse_dt(clean_data[dt_col])
+            stmt = select(RuleAmendment).where(RuleAmendment.id == clean_data.get("id"))
+            res = await session.execute(stmt)
+            existing = res.scalar_one_or_none()
+            if existing:
+                for k, v in clean_data.items():
+                    if hasattr(existing, k):
+                        setattr(existing, k, v)
+            else:
+                a = RuleAmendment(**clean_data)
+                session.add(a)
+            await session.commit()
+            return amendment_data
+
+    async def save_rule_audit_log(self, audit_data: Dict[str, Any]) -> Dict[str, Any]:
+        async with await self._get_session() as session:
+            clean_data = dict(audit_data)
+            if "timestamp" in clean_data and clean_data["timestamp"]:
+                clean_data["timestamp"] = _parse_dt(clean_data["timestamp"])
+            log = RuleAuditLog(**clean_data)
+            session.add(log)
+            await session.commit()
+            return audit_data
 
     async def get_rule_coverage(self) -> List[Dict[str, Any]]:
         async with await self._get_session() as session:
@@ -417,6 +688,7 @@ class NeonPostgresRepository(
                 {
                     "id": c.id, "rule_family": c.rule_family, "rule_codes": c.rule_codes,
                     "coverage_status": c.coverage_status, "supported_checks": c.supported_checks,
+                    "limitations": c.limitations,
                     "source_reference": c.source_reference
                 } for c in covs
             ]

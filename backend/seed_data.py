@@ -44,21 +44,13 @@ async def seed_neon_database():
         for p_data in demo_repository.products.values():
             await session.merge(Product(**_prepare(p_data, "created_at", "updated_at")))
 
-        # Seed rules
-        for r_data in demo_repository.rules.values():
-            r_dict = {k: v for k, v in r_data.items() if k != "versions"}
-            await session.merge(Rule(**_prepare(r_dict, "created_at", "updated_at")))
-            for v_data in r_data.get("versions", []):
-                v_dict = {k: v for k, v in v_data.items() if k != "rule_code" and k != "rule_title" and k != "rule_category"}
-                await session.merge(RuleVersion(**_prepare(v_dict, "effective_from", "effective_to", "created_at")))
-
-        # Seed coverage
-        for cov_data in demo_repository.rule_coverage:
-            await session.merge(RuleCoverage(**_prepare(cov_data, "last_verified_at")))
-
         # Seed label versions
         for lv_data in demo_repository.label_versions:
             await session.merge(LabelVersion(**_prepare(lv_data, "captured_at")))
+
+        # Seed authoritative statutory rules, legal documents, versions, amendments, and coverage
+        from app.scripts.seed_legal_rules import seed_real_statutory_rules
+        await seed_real_statutory_rules(session=session)
 
         await session.commit()
     logger.info("Seed data successfully committed to Neon PostgreSQL.")

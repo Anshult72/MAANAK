@@ -150,14 +150,20 @@ class Rule(Base):
 
     id = Column(String(36), primary_key=True, default=generate_uuid)
     code = Column(String(100), unique=True, nullable=False, index=True)
+    statutory_reference = Column(String(255), nullable=True, index=True)
     title = Column(String(255), nullable=False)
     description = Column(Text, nullable=True)
-    category = Column(String(100), nullable=False, default="GENERAL")
+    category = Column(String(100), nullable=False, default="GENERAL", index=True)  # DECLARATIONS, PDP_FONT_SIZE, MRP, E_COMMERCE, OTHER
+    validation_type = Column(String(100), nullable=True)  # MANDATORY_DECLARATION, PDP_TABLE_I, CHAR_PROPORTION, PRICE_TAX_INCLUSIVE, UNIT_SALE_PRICE, ECOM_VIEWPORT, LEGIBILITY_CONTRAST
+    parameters_json = Column(JSON, nullable=True)
+    evidence_requirements_json = Column(JSON, nullable=True)
+    coverage_status = Column(String(50), nullable=False, default="FULLY_IMPLEMENTED")  # FULLY_IMPLEMENTED, PARTIALLY_IMPLEMENTED, NOT_COVERED
     active = Column(Boolean, default=True, index=True)
     created_at = Column(DateTime(timezone=True), default=get_utc_now)
     updated_at = Column(DateTime(timezone=True), default=get_utc_now, onupdate=get_utc_now)
 
     versions = relationship("RuleVersion", back_populates="rule", cascade="all, delete-orphan")
+    amendments = relationship("RuleAmendment", back_populates="rule", cascade="all, delete-orphan")
 
 class RuleVersion(Base):
     __tablename__ = "rule_versions"
@@ -165,6 +171,7 @@ class RuleVersion(Base):
     id = Column(String(36), primary_key=True, default=generate_uuid)
     rule_id = Column(String(36), ForeignKey("rules.id"), nullable=False, index=True)
     version = Column(String(50), nullable=False)
+    version_label = Column(String(100), nullable=True)
     description = Column(Text, nullable=True)
     
     conditions = Column(JSON, nullable=False)  # Controlled condition model: {conditionGroup: ALL, conditions: [...]}
@@ -174,14 +181,64 @@ class RuleVersion(Base):
     source_name = Column(String(255), nullable=False)
     source_reference = Column(String(255), nullable=False)
     source_url = Column(String(500), nullable=True)
+    source_document_id = Column(String(50), nullable=True)
     
-    effective_from = Column(DateTime(timezone=True), nullable=False)
-    effective_to = Column(DateTime(timezone=True), nullable=True)
+    publication_date = Column(DateTime(timezone=True), nullable=True)
+    effective_from = Column(DateTime(timezone=True), nullable=False, index=True)
+    effective_to = Column(DateTime(timezone=True), nullable=True, index=True)
+    status = Column(String(50), nullable=False, default="ACTIVE", index=True)  # DRAFT, PENDING_REVIEW, APPROVED, SCHEDULED, ACTIVE, SUPERSEDED
     is_demo_rule = Column(Boolean, default=False)
     
+    created_by = Column(String(100), nullable=True)
+    approved_by = Column(String(100), nullable=True)
+    approved_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), default=get_utc_now)
 
     rule = relationship("Rule", back_populates="versions")
+
+class LegalDocument(Base):
+    __tablename__ = "legal_documents"
+
+    id = Column(String(50), primary_key=True)
+    title = Column(String(255), nullable=False)
+    document_type = Column(String(50), nullable=False)  # PRIMARY_ACT, STATUTORY_RULES, GAZETTE_AMENDMENT, OFFICIAL_ADVISORY, PROPOSED_AMENDMENT
+    source_url = Column(String(500), nullable=False)
+    source_authority = Column(String(255), nullable=False)
+    notification_number = Column(String(100), nullable=True)
+    publication_date = Column(DateTime(timezone=True), nullable=True)
+    effective_date = Column(DateTime(timezone=True), nullable=True)
+    document_hash = Column(String(64), nullable=True)
+    document_version = Column(String(50), nullable=True)
+    status = Column(String(50), default="ACTIVE")  # ACTIVE, SUPERSEDED, SCHEDULED
+    created_at = Column(DateTime(timezone=True), default=get_utc_now)
+
+class RuleAmendment(Base):
+    __tablename__ = "rule_amendments"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    rule_id = Column(String(36), ForeignKey("rules.id"), nullable=False, index=True)
+    previous_version_id = Column(String(36), nullable=True)
+    new_version_id = Column(String(36), nullable=False)
+    amendment_type = Column(String(50), nullable=False)  # BASE, TEXTUAL, THRESHOLD, E_COMMERCE, PENALTY, CLARIFICATION
+    amendment_summary = Column(Text, nullable=False)
+    source_document_id = Column(String(50), nullable=True)
+    effective_from = Column(DateTime(timezone=True), nullable=False)
+    created_at = Column(DateTime(timezone=True), default=get_utc_now)
+
+    rule = relationship("Rule", back_populates="amendments")
+
+class RuleAuditLog(Base):
+    __tablename__ = "rule_audit_logs"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    rule_id = Column(String(36), nullable=False, index=True)
+    rule_version_id = Column(String(36), nullable=True)
+    action = Column(String(100), nullable=False)  # RULE_CREATED, VERSION_CREATED, VERSION_APPROVED, VERSION_SCHEDULED, VERSION_SUPERSEDED
+    actor_id = Column(String(100), nullable=False)
+    previous_value = Column(JSON, nullable=True)
+    new_value = Column(JSON, nullable=True)
+    reason = Column(Text, nullable=True)
+    timestamp = Column(DateTime(timezone=True), default=get_utc_now, index=True)
 
 class ComplianceCheck(Base):
     __tablename__ = "compliance_checks"
