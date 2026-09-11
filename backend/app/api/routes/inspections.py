@@ -18,6 +18,7 @@ from app.services.llm import get_llm_service
 from app.services.declaration.correctness_service import declaration_correctness_service
 from app.engines.compliance_engine.compliance_engine import compliance_engine
 from app.services.evidence.evidence_service import evidence_service
+from app.core.config import settings
 from app.core.logging import logger
 
 router = APIRouter(prefix="/api/inspections", tags=["Inspections"])
@@ -98,7 +99,11 @@ async def update_inspection(
     if not ins:
         raise HTTPException(status_code=404, detail="Inspection not found")
     if ins.get("status") == "FINALIZED":
-        raise HTTPException(status_code=400, detail="Cannot modify a finalized inspection")
+        if settings.is_demo_mode:
+            logger.info("Reopening finalized inspection %s for demo modification", inspection_id)
+            await repo.update(inspection_id, {"status": "DRAFT", "finalized_at": None})
+        else:
+            raise HTTPException(status_code=400, detail="Cannot modify a finalized inspection. Please select an in-progress case or create a new case.")
 
     updated = await repo.update(inspection_id, req)
     return updated
@@ -115,7 +120,14 @@ async def upload_image(
     if not ins:
         raise HTTPException(status_code=404, detail="Inspection not found")
     if ins.get("status") == "FINALIZED":
-        raise HTTPException(status_code=400, detail="Cannot add images to finalized inspection")
+        if settings.is_demo_mode:
+            logger.info("Reopening finalized inspection %s for demo image upload", inspection_id)
+            await repo.update(inspection_id, {"status": "DRAFT", "finalized_at": None})
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail="Cannot add images to a finalized inspection. Please select an in-progress case or create a new case."
+            )
 
     file_bytes = await file.read()
     orig_path, thumb_path, width, height, sha256 = await storage_manager.save_inspection_image(
@@ -202,8 +214,13 @@ async def delete_image(
 ):
     repo = get_repository()
     ins = await repo.get_by_id(inspection_id)
-    if not ins or ins.get("status") == "FINALIZED":
-        raise HTTPException(status_code=400, detail="Inspection finalized or not found")
+    if not ins:
+        raise HTTPException(status_code=404, detail="Inspection not found")
+    if ins.get("status") == "FINALIZED":
+        if settings.is_demo_mode:
+            await repo.update(inspection_id, {"status": "DRAFT", "finalized_at": None})
+        else:
+            raise HTTPException(status_code=400, detail="Cannot delete images from a finalized inspection")
     deleted = await repo.delete_image(inspection_id, image_id)
     return {"success": deleted}
 

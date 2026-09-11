@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/network/api_client.dart';
 import '../../core/constants/api_constants.dart';
+import '../../core/responsive/responsive_layout.dart';
+import 'widgets/rule_admin_web_layout.dart';
 
 final rulesListProvider = FutureProvider.family<List<dynamic>, String>((ref, category) async {
   final client = ref.watch(apiClientProvider);
@@ -194,6 +196,10 @@ class _RuleAdminScreenState extends ConsumerState<RuleAdminScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (ResponsiveLayout.isWebDesktop(context)) {
+      return const RuleAdminWebLayout();
+    }
+
     final rulesAsync = ref.watch(rulesListProvider(_selectedCategory));
 
     return Scaffold(

@@ -9,7 +9,9 @@ import 'package:http_parser/http_parser.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/network/api_client.dart';
 import '../../core/constants/api_constants.dart';
+import '../../core/responsive/responsive_layout.dart';
 import '../inspections/inspections_controller.dart';
+import 'widgets/scanner_web_workspace.dart';
 
 class ScannerScreen extends ConsumerStatefulWidget {
   final String? inspectionId;
@@ -81,8 +83,12 @@ class _ScannerScreenState extends ConsumerState<ScannerScreen> {
       if (_currentInspectionId == null) {
         final state = ref.read(inspectionsProvider);
         if (state.inspections.isNotEmpty) {
+          final activeIns = state.inspections.firstWhere(
+            (ins) => ins.status.toUpperCase() != 'FINALIZED',
+            orElse: () => state.inspections.first,
+          );
           setState(() {
-            _currentInspectionId = state.inspections.first.id;
+            _currentInspectionId = activeIns.id;
           });
         }
       }
@@ -145,6 +151,31 @@ class _ScannerScreenState extends ConsumerState<ScannerScreen> {
       return;
     }
 
+    final inspectionsState = ref.read(inspectionsProvider);
+    final selectedInspection = inspectionsState.inspections
+        .where((ins) => ins.id == _currentInspectionId)
+        .firstOrNull;
+    if (selectedInspection != null && selectedInspection.status.toUpperCase() == 'FINALIZED') {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Selected case is FINALIZED. Please select an active inspection or tap + New Case to run a compliance audit.'),
+          backgroundColor: AppColors.violation,
+          duration: Duration(seconds: 4),
+        ),
+      );
+      return;
+    }
+
+    if (_surfaceImages.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please capture or load at least one package surface image before running the audit.'),
+          backgroundColor: AppColors.warning,
+        ),
+      );
+      return;
+    }
+
     setState(() {
       _isUploading = true;
       _uploadStatusMessage = 'Uploading commodity package surfaces...';
@@ -187,8 +218,27 @@ class _ScannerScreenState extends ConsumerState<ScannerScreen> {
     } catch (e) {
       if (mounted) {
         setState(() => _isUploading = false);
+        String message = 'Pipeline error: $e';
+        if (e is DioException) {
+          final responseData = e.response?.data;
+          if (responseData is Map && responseData['detail'] is String) {
+            message = responseData['detail'] as String;
+          } else if (responseData is Map && responseData['error'] is Map) {
+            final errorMap = responseData['error'] as Map;
+            message = (errorMap['details'] as String?) ??
+                (errorMap['message'] as String?) ??
+                e.message ??
+                message;
+          } else if (e.message != null && e.message!.isNotEmpty) {
+            message = e.message!;
+          }
+        }
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Pipeline error: $e'), backgroundColor: AppColors.violation),
+          SnackBar(
+            content: Text(message),
+            backgroundColor: AppColors.violation,
+            duration: const Duration(seconds: 4),
+          ),
         );
       }
     }
@@ -196,6 +246,31 @@ class _ScannerScreenState extends ConsumerState<ScannerScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (ResponsiveLayout.isWebDesktop(context)) {
+      return ScannerWebWorkspace(
+        currentInspectionId: _currentInspectionId,
+        onInspectionChanged: (val) {
+          if (val != null) setState(() => _currentInspectionId = val);
+        },
+        selectedSurfaceIndex: _selectedSurfaceIndex,
+        surfaces: _surfaces,
+        onSurfaceChanged: (val) => setState(() => _selectedSurfaceIndex = val),
+        surfaceImages: _surfaceImages,
+        surfaceImageNames: _surfaceImageNames,
+        onClearActiveSurface: () {
+          setState(() {
+            _surfaceImages.remove(_selectedSurfaceIndex);
+            _surfaceImageNames.remove(_selectedSurfaceIndex);
+          });
+        },
+        onPickImage: _pickImage,
+        onLoadSamplePackage: _loadSamplePackage,
+        onRunPipeline: _runPipeline,
+        isUploading: _isUploading,
+        uploadStatusMessage: _uploadStatusMessage,
+      );
+    }
+
     final inspectionsState = ref.watch(inspectionsProvider);
 
     return Scaffold(
@@ -353,18 +428,43 @@ class _ScannerScreenState extends ConsumerState<ScannerScreen> {
           ),
           if (state.inspections.isEmpty)
             const Text('No inspections created. Tap + New Case.', style: TextStyle(color: AppColors.warning))
-          else
+          else ...[
             DropdownButton<String>(
               isExpanded: true,
               value: _currentInspectionId,
               underline: const SizedBox(),
               items: state.inspections.map((ins) {
+                final isItemFinalized = ins.status.toUpperCase() == 'FINALIZED';
                 return DropdownMenuItem<String>(
                   value: ins.id,
-                  child: Text(
-                    '${ins.inspectionCode} — ${ins.businessName ?? ins.sellerName ?? ins.location}',
-                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-                    overflow: TextOverflow.ellipsis,
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: isItemFinalized
+                              ? AppColors.neutral200
+                              : AppColors.secondary.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          ins.status.toUpperCase(),
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            color: isItemFinalized ? AppColors.neutral600 : AppColors.secondary,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          '${ins.inspectionCode} — ${ins.businessName ?? ins.sellerName ?? ins.location}',
+                          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
                   ),
                 );
               }).toList(),
@@ -372,6 +472,36 @@ class _ScannerScreenState extends ConsumerState<ScannerScreen> {
                 if (val != null) setState(() => _currentInspectionId = val);
               },
             ),
+            Builder(builder: (context) {
+              final selectedIns = state.inspections
+                  .where((ins) => ins.id == _currentInspectionId)
+                  .firstOrNull;
+              if (selectedIns?.status.toUpperCase() == 'FINALIZED') {
+                return Container(
+                  margin: const EdgeInsets.only(top: 8),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: AppColors.violation.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: AppColors.violation.withValues(alpha: 0.3)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.lock_outline, size: 16, color: AppColors.violation),
+                      const SizedBox(width: 8),
+                      const Expanded(
+                        child: Text(
+                          'Selected case is FINALIZED (read-only). To scan package images, please select an in-progress case or tap + New Case.',
+                          style: TextStyle(fontSize: 11, color: AppColors.violation, fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }
+              return const SizedBox.shrink();
+            }),
+          ],
         ],
       ),
     );

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/widgets/app_logo.dart';
 import '../../auth/auth_controller.dart';
 
 class MaanakNavigationDrawer extends ConsumerWidget {
@@ -60,6 +61,11 @@ class MaanakNavigationDrawer extends ConsumerWidget {
                       ),
                     ),
                     const Spacer(),
+                    const AppLogo.compact(
+                      size: 32,
+                      borderRadius: BorderRadius.all(Radius.circular(6)),
+                    ),
+                    const SizedBox(width: 8),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                       decoration: BoxDecoration(

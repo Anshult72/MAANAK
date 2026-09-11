@@ -705,6 +705,31 @@ class DemoInMemoryRepository(
                         "created_at": "2026-09-07T16:10:00Z"
                     }
                 ]
+            },
+            "ins-demo-004": {
+                "id": "ins-demo-004",
+                "inspection_code": "INS-2026-00104",
+                "inspector_id": "u-insp-1",
+                "product_id": "prod-rice-01",
+                "inspection_type": "PHYSICAL",
+                "inspection_date": "2026-09-12T01:00:00Z",
+                "location": "Heritage Fresh Supermarket, Khan Market, New Delhi",
+                "seller_name": "Retail Traders Pvt Ltd",
+                "business_name": "Heritage Fresh Supermarket",
+                "status": "DRAFT",
+                "score": None,
+                "package_type": "RECTANGULAR",
+                "package_construction_type": "NORMAL",
+                "calibration_status": "NOT_CALIBRATED",
+                "applied_rule_version": "2024.1",
+                "notes": "Draft package case ready for multi-surface scanning & OCR verification.",
+                "created_at": "2026-09-12T01:00:00Z",
+                "updated_at": "2026-09-12T01:00:00Z",
+                "finalized_at": None,
+                "images": [],
+                "declarations": [],
+                "checks": [],
+                "violations": []
             }
         }
 

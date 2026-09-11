@@ -5,8 +5,10 @@ import '../../core/theme/app_theme.dart';
 import '../../core/network/api_client.dart';
 import '../auth/auth_controller.dart';
 import '../inspections/inspections_controller.dart';
-import '../../core/constants/app_brand.dart';
+import '../../core/widgets/app_logo.dart';
+import '../../core/responsive/responsive_layout.dart';
 import 'widgets/maanak_navigation_drawer.dart';
+import 'widgets/dashboard_web_layout.dart';
 
 final dashboardSummaryProvider = FutureProvider<Map<String, dynamic>>((ref) async {
   final client = ref.watch(apiClientProvider);
@@ -45,6 +47,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (ResponsiveLayout.isWebDesktop(context)) {
+      return const DashboardWebLayout();
+    }
+
     final authState = ref.watch(authProvider);
     final summaryAsync = ref.watch(dashboardSummaryProvider);
     final inspectionsState = ref.watch(inspectionsProvider);
@@ -63,21 +69,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         title: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: AppColors.secondary,
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: const Text(
-                AppBrand.name,
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w900,
-                  fontSize: 13.5,
-                  letterSpacing: 1.0,
-                ),
-              ),
+            const AppLogo.compact(
+              size: 32,
+              borderRadius: BorderRadius.all(Radius.circular(6)),
             ),
             const SizedBox(width: 10),
             const Flexible(

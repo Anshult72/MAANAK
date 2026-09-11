@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/responsive/responsive_layout.dart';
 import 'inspections_controller.dart';
+import 'widgets/inspections_list_web_layout.dart';
 
 class InspectionsListScreen extends ConsumerStatefulWidget {
   const InspectionsListScreen({super.key});
@@ -32,6 +34,10 @@ class _InspectionsListScreenState extends ConsumerState<InspectionsListScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (ResponsiveLayout.isWebDesktop(context)) {
+      return const InspectionsListWebLayout();
+    }
+
     final state = ref.watch(inspectionsProvider);
 
     List<InspectionModel> filtered = state.inspections.where((ins) {

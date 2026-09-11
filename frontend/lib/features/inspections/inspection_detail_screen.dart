@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/responsive/responsive_layout.dart';
 import 'inspections_controller.dart';
+import 'widgets/inspection_detail_web_layout.dart';
 
 class InspectionDetailScreen extends ConsumerStatefulWidget {
   final String inspectionId;
@@ -98,14 +100,9 @@ class _InspectionDetailScreenState extends ConsumerState<InspectionDetailScreen>
                 Navigator.pop(ctx);
                 await ref.read(inspectionsProvider.notifier).editDeclaration(
                   dec['id'],
-                  verifiedCtrl.text,
-                  notes: notesCtrl.text,
+                  verifiedCtrl.text.trim(),
+                  notes: notesCtrl.text.trim().isEmpty ? null : notesCtrl.text.trim(),
                 );
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text("✓ Verified value saved. Raw AI value preserved for audit trail.")),
-                  );
-                }
               },
               child: const Text("Save Verified Value"),
             ),
@@ -119,9 +116,9 @@ class _InspectionDetailScreenState extends ConsumerState<InspectionDetailScreen>
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text("Finalize Inspection"),
+        title: const Text("Finalize & Seal Inspection?"),
         content: const Text(
-          "Finalize this inspection? Finalized inspection data and applied rule snapshots will remain immutable as part of the audit trail.",
+          "Finalizing will lock all declaration readings, apply the current legal metrology rule set, generate the tamper-proof cryptographic audit hash, and seal the case. This cannot be undone.",
           style: TextStyle(fontSize: 13),
         ),
         actions: [
@@ -151,6 +148,14 @@ class _InspectionDetailScreenState extends ConsumerState<InspectionDetailScreen>
   Widget build(BuildContext context) {
     final state = ref.watch(inspectionsProvider);
     final ins = state.selectedInspection;
+
+    if (ResponsiveLayout.isWebDesktop(context) && ins != null) {
+      return InspectionDetailWebLayout(
+        inspection: ins,
+        onEditDeclaration: _showEditDeclarationSheet,
+        onRefresh: () => ref.read(inspectionsProvider.notifier).fetchInspectionDetail(widget.inspectionId),
+      );
+    }
 
     if (ins == null && state.isLoading) {
       return Scaffold(

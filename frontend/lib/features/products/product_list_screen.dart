@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/network/api_client.dart';
 import '../../core/constants/api_constants.dart';
+import '../../core/responsive/responsive_layout.dart';
+import 'widgets/product_list_web_layout.dart';
 
 final productsListProvider = FutureProvider<List<dynamic>>((ref) async {
   final client = ref.watch(apiClientProvider);
@@ -57,6 +59,10 @@ class ProductListScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    if (ResponsiveLayout.isWebDesktop(context)) {
+      return const ProductListWebLayout();
+    }
+
     final productsAsync = ref.watch(productsListProvider);
 
     return Scaffold(

@@ -24,6 +24,8 @@ import '../../features/settings/settings_screen.dart';
 import '../../features/audit/audit_trail_screen.dart';
 import '../../features/about/help_about_screen.dart';
 
+import '../responsive/web_app_shell.dart';
+
 // Stable navigator keys — survive GoRouter refreshes.
 final rootNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'root');
 final _shellNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'shell');
@@ -59,11 +61,14 @@ GoRouter createAppRouter(WidgetRef ref, ValueListenable<int> authNotifier) {
         builder: (context, state) => const LoginScreen(),
       ),
 
-      // Bottom Navigation Shell for primary operational tabs
+      // Operational Navigation Shell (Sidebar & Topbar on Web Desktop, Bottom Nav on Mobile)
       ShellRoute(
         navigatorKey: _shellNavigatorKey,
         builder: (context, state, child) {
-          return ScaffoldWithBottomNavBar(child: child);
+          return WebAppShell(
+            mobileChild: ScaffoldWithBottomNavBar(child: child),
+            child: child,
+          );
         },
         routes: [
           GoRoute(

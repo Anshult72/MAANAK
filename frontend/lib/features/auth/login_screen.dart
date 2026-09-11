@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/constants/app_brand.dart';
+import '../../core/widgets/app_logo.dart';
 import 'auth_controller.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
@@ -64,25 +65,22 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       // Institutional Crest Icon & Heading
+                      // Official LM-TRACE Brand Logo
                       Center(
                         child: Container(
-                          width: 68,
-                          height: 68,
                           decoration: BoxDecoration(
-                            color: AppColors.primaryNavy,
-                            borderRadius: BorderRadius.circular(14),
+                            borderRadius: BorderRadius.circular(18),
                             boxShadow: [
                               BoxShadow(
-                                color: AppColors.primaryNavy.withValues(alpha: 0.2),
-                                blurRadius: 10,
-                                offset: const Offset(0, 4),
+                                color: AppColors.primaryNavy.withValues(alpha: 0.18),
+                                blurRadius: 18,
+                                offset: const Offset(0, 6),
                               ),
                             ],
                           ),
-                          child: const Icon(
-                            Icons.verified_user_rounded,
-                            size: 38,
-                            color: Colors.white,
+                          child: const AppLogo(
+                            size: 88,
+                            borderRadius: BorderRadius.all(Radius.circular(18)),
                           ),
                         ),
                       ),

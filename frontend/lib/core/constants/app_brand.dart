@@ -21,3 +21,24 @@ class AppBrand {
   /// Default fallback officer email domain.
   static const String defaultOfficerEmail = 'officer@lmtrace.gov.in';
 }
+
+/// Centralized brand assets and identity configuration for LM-TRACE.
+class AppBranding {
+  /// Path to official LM-TRACE high-resolution logo asset.
+  static const String logoAsset = 'assets/images/logo/lm_trace_logo.png';
+
+  /// Primary application identifier.
+  static const String appName = 'LM-TRACE';
+
+  /// Full descriptive statutory product name.
+  static const String productName = 'Legal Metrology Compliance & Inspection Platform';
+
+  /// Departmental affiliation.
+  static const String department = 'Legal Metrology Department';
+
+  /// Tagline printed on brand mark.
+  static const String tagline = 'SCAN TODAY COMPLY TOMORROW';
+
+  /// Semantic accessibility label for screen readers.
+  static const String semanticLabel = 'LM-TRACE Legal Metrology Compliance Inspection Platform';
+}

@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:dio/dio.dart';
 import 'package:pdf/pdf.dart';
@@ -34,6 +35,14 @@ class _ReportPreviewScreenState extends ConsumerState<ReportPreviewScreen> {
   Future<Uint8List> _generatePdf(PdfPageFormat format, InspectionModel ins) async {
     final doc = pw.Document();
 
+    pw.MemoryImage? logoImage;
+    try {
+      final byteData = await rootBundle.load(AppBranding.logoAsset);
+      logoImage = pw.MemoryImage(byteData.buffer.asUint8List());
+    } catch (_) {
+      // Fallback if asset cannot be decoded
+    }
+
     doc.addPage(
       pw.MultiPage(
         pageFormat: PdfPageFormat.a4,
@@ -49,19 +58,30 @@ class _ReportPreviewScreenState extends ConsumerState<ReportPreviewScreen> {
               child: pw.Row(
                 crossAxisAlignment: pw.CrossAxisAlignment.center,
                 children: [
-                  pw.Container(
-                    width: 50,
-                    height: 50,
-                    decoration: pw.BoxDecoration(
-                      shape: pw.BoxShape.circle,
-                      border: pw.Border.all(color: PdfColors.blue900, width: 2),
+                  if (logoImage != null)
+                    pw.Container(
+                      width: 52,
+                      height: 52,
+                      child: pw.ClipRRect(
+                        horizontalRadius: 6,
+                        verticalRadius: 6,
+                        child: pw.Image(logoImage, fit: pw.BoxFit.contain),
+                      ),
+                    )
+                  else
+                    pw.Container(
+                      width: 50,
+                      height: 50,
+                      decoration: pw.BoxDecoration(
+                        shape: pw.BoxShape.circle,
+                        border: pw.Border.all(color: PdfColors.blue900, width: 2),
+                      ),
+                      alignment: pw.Alignment.center,
+                      child: pw.Text(
+                        AppBrand.name,
+                        style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 7, color: PdfColors.blue900),
+                      ),
                     ),
-                    alignment: pw.Alignment.center,
-                    child: pw.Text(
-                      AppBrand.name,
-                      style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 7, color: PdfColors.blue900),
-                    ),
-                  ),
                   pw.SizedBox(width: 14),
                   pw.Expanded(
                     child: pw.Column(

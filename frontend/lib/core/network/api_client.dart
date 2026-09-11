@@ -54,6 +54,29 @@ class ApiClient {
           }
 
           final statusCode = e.response?.statusCode;
+          if (statusCode == 400) {
+            final data = e.response?.data;
+            String msg = 'Bad request. Please verify your input.';
+            if (data is Map && data['detail'] is String) {
+              msg = data['detail'] as String;
+            } else if (data is Map && data['error'] is Map) {
+              final errMap = data['error'] as Map;
+              msg = (errMap['details'] as String?) ??
+                  (errMap['message'] as String?) ??
+                  msg;
+            } else if (data is String && data.isNotEmpty && !data.contains('<html')) {
+              msg = data;
+            }
+            return handler.next(
+              DioException(
+                requestOptions: e.requestOptions,
+                response: e.response,
+                type: e.type,
+                error: e.error,
+                message: msg,
+              ),
+            );
+          }
           if (statusCode == 401) {
             return handler.next(
               DioException(

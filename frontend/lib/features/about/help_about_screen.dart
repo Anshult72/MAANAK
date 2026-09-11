@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/constants/app_brand.dart';
+import '../../core/widgets/app_logo.dart';
 
 class HelpAboutScreen extends StatelessWidget {
   const HelpAboutScreen({super.key});
@@ -26,21 +27,9 @@ class HelpAboutScreen extends StatelessWidget {
               padding: const EdgeInsets.all(24),
               child: Column(
                 children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: AppColors.primaryNavy,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Text(
-                      AppBrand.name,
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 22,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 2.0,
-                      ),
-                    ),
+                  const AppLogo(
+                    size: 96,
+                    borderRadius: BorderRadius.all(Radius.circular(16)),
                   ),
                   const SizedBox(height: 12),
                   const Text(
