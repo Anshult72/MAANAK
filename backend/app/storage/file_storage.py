@@ -143,7 +143,7 @@ class StorageManager(IFileStorage):
         Saves uploaded/archived PDF bytes and returns (file_path, sha256).
         """
         sha256 = hashlib.sha256(file_bytes).hexdigest()
-        filename = f"MAANAK_REPORT_{inspection_id}_v{version}_{sha256[:8]}.pdf"
+        filename = f"LM_TRACE_REPORT_{inspection_id}_v{version}_{sha256[:8]}.pdf"
         file_path = os.path.join(self.reports_dir, filename)
         
         async with aiofiles.open(file_path, "wb") as f:
@@ -156,7 +156,7 @@ class StorageManager(IFileStorage):
         Saves generated DOCX bytes and returns (file_path, sha256).
         """
         sha256 = hashlib.sha256(file_bytes).hexdigest()
-        filename = f"MAANAK_REPORT_{inspection_id}_v{version}_{sha256[:8]}.docx"
+        filename = f"LM_TRACE_REPORT_{inspection_id}_v{version}_{sha256[:8]}.docx"
         file_path = os.path.join(self.reports_dir, filename)
         
         async with aiofiles.open(file_path, "wb") as f:

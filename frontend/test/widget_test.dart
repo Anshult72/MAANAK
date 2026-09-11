@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:maanak_app/main.dart';
 
 void main() {
-  testWidgets('MAANAK App boot smoke test', (WidgetTester tester) async {
+  testWidgets('LM-TRACE App boot smoke test', (WidgetTester tester) async {
     await tester.pumpWidget(
       const ProviderScope(
         child: MaanakApp(),

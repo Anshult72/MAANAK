@@ -14,8 +14,8 @@ from app.api.routes import (
 setup_logging()
 
 app = FastAPI(
-    title="MAANAK — Legal Metrology Inspection & Compliance Platform",
-    description="AI-Assisted Legal Metrology Inspection & Compliance Prototype for SIH 2026 (Problem Statement 26034)",
+    title="LM-TRACE — Legal Metrology Inspection & Compliance Platform",
+    description="AI-Assisted Legal Metrology Inspection & Compliance Platform",
     version="1.0.0",
     docs_url="/docs",
     redoc_url="/redoc"
@@ -81,7 +81,7 @@ async def health_check():
     Does not depend on Gemini/OCR/database."""
     return {
         "status": "ok",
-        "service": "MAANAK Legal Metrology Platform",
+        "service": "LM-TRACE Legal Metrology Platform",
         "mode": "DEMO_DATA_MODE" if settings.is_demo_mode else "NEON_POSTGRESQL",
         "version": "1.0.0"
     }

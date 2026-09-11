@@ -1,11 +1,11 @@
 {
-    "name": "maanak_app",
-    "short_name": "maanak_app",
+    "name": "LM-TRACE",
+    "short_name": "LM-TRACE",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
     "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "description": "LM-TRACE Legal Metrology Compliance & Inspection System",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

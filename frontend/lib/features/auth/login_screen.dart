@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/constants/app_brand.dart';
 import 'auth_controller.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
@@ -88,7 +89,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       const SizedBox(height: 18),
                       const Center(
                         child: Text(
-                          "MAANAK",
+                          AppBrand.name,
                           style: TextStyle(
                             fontSize: 26,
                             fontWeight: FontWeight.w800,

@@ -6,6 +6,7 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/constants/app_brand.dart';
 import '../../core/network/api_client.dart';
 import '../../core/constants/api_constants.dart';
 import '../inspections/inspections_controller.dart';
@@ -57,8 +58,8 @@ class _ReportPreviewScreenState extends ConsumerState<ReportPreviewScreen> {
                     ),
                     alignment: pw.Alignment.center,
                     child: pw.Text(
-                      'MAANAK',
-                      style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8, color: PdfColors.blue900),
+                      AppBrand.name,
+                      style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 7, color: PdfColors.blue900),
                     ),
                   ),
                   pw.SizedBox(width: 14),
@@ -264,7 +265,7 @@ class _ReportPreviewScreenState extends ConsumerState<ReportPreviewScreen> {
                   children: [
                     pw.Text('Report Sealed With:', style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey600)),
                     pw.Text('SHA-256 Audit Seal: a7f893d2...c102', style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
-                    pw.Text('Platform: MAANAK v1.0 (SIH-2026)', style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey600)),
+                    pw.Text('Platform: ${AppBrand.name} v1.0', style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey600)),
                   ],
                 ),
                 pw.Column(
@@ -396,12 +397,12 @@ class _ReportPreviewScreenState extends ConsumerState<ReportPreviewScreen> {
           final bytes = Uint8List.fromList(rawBytes);
           await Printing.sharePdf(
             bytes: bytes,
-            filename: 'MAANAK_REPORT_$code.docx',
+            filename: 'LM_TRACE_REPORT_$code.docx',
           );
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text('✓ DOCX Report ready: MAANAK_REPORT_$code.docx'),
+                content: Text('✓ DOCX Report ready: LM_TRACE_REPORT_$code.docx'),
                 backgroundColor: AppColors.compliant,
               ),
             );
@@ -458,7 +459,7 @@ class _ReportPreviewScreenState extends ConsumerState<ReportPreviewScreen> {
         build: (format) => _generatePdf(format, ins),
         canChangePageFormat: false,
         canChangeOrientation: false,
-        pdfFileName: 'MAANAK_Inspection_Report_${ins.inspectionCode}.pdf',
+        pdfFileName: 'LM_TRACE_Inspection_Report_${ins.inspectionCode}.pdf',
         actions: [
           PdfPreviewAction(
             icon: const Icon(Icons.edit_document, color: Colors.white),

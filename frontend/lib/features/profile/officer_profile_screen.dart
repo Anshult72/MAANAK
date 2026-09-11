@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../core/constants/app_brand.dart';
 import '../../core/theme/app_theme.dart';
 import '../auth/auth_controller.dart';
 
@@ -23,7 +24,7 @@ class OfficerProfileScreen extends ConsumerWidget {
     final role = (user?.role ?? 'INSPECTOR').toUpperCase();
     final department = user?.department ?? 'Legal Metrology Department';
     final zone = user?.zone ?? 'Central Enforcement Zone';
-    final email = user?.email ?? 'officer@maanak.gov.in';
+    final email = user?.email ?? AppBrand.defaultOfficerEmail;
 
     return Scaffold(
       backgroundColor: AppColors.neutral50,

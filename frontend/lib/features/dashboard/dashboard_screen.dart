@@ -5,6 +5,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/network/api_client.dart';
 import '../auth/auth_controller.dart';
 import '../inspections/inspections_controller.dart';
+import '../../core/constants/app_brand.dart';
 import 'widgets/maanak_navigation_drawer.dart';
 
 final dashboardSummaryProvider = FutureProvider<Map<String, dynamic>>((ref) async {
@@ -69,16 +70,16 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 borderRadius: BorderRadius.circular(6),
               ),
               child: const Text(
-                'MAANAK',
+                AppBrand.name,
                 style: TextStyle(
                   color: Colors.white,
                   fontWeight: FontWeight.w900,
-                  fontSize: 14,
-                  letterSpacing: 1.2,
+                  fontSize: 13.5,
+                  letterSpacing: 1.0,
                 ),
               ),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 10),
             const Flexible(
               child: Text(
                 'Legal Metrology',

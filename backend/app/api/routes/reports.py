@@ -240,7 +240,7 @@ async def get_docx_report(
     except Exception as e:
         logger.warning(f"Could not persist docx report to disk: {e}")
 
-    filename = f"MAANAK_REPORT_{ins.get('inspection_code', canonical_id)}.docx"
+    filename = f"LM_TRACE_REPORT_{ins.get('inspection_code', canonical_id)}.docx"
     return Response(
         content=docx_bytes,
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",

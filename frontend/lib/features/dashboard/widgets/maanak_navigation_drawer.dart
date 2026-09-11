@@ -187,7 +187,7 @@ class MaanakNavigationDrawer extends ConsumerWidget {
                 _buildDrawerTile(
                   context,
                   icon: Icons.help_outline_rounded,
-                  title: 'Help & About MAANAK',
+                  title: 'Help & About LM-TRACE',
                   route: '/about',
                   semanticLabel: 'Help and About',
                 ),

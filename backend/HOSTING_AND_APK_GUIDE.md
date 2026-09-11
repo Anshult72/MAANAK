@@ -1,6 +1,6 @@
-# MAANAK Backend Hosting & APK Distribution Guide
+# LM-TRACE Backend Hosting & APK Distribution Guide
 
-Is guide ki madad se aap MAANAK Backend ko internet par host kar sakte hain aur Android APK build karke kisi ko bhi share kar sakte hain.
+Is guide ki madad se aap LM-TRACE Backend ko internet par host kar sakte hain aur Android APK build karke kisi ko bhi share kar sakte hain.
 
 ---
 
@@ -109,7 +109,7 @@ Jaise hi aapko public backend URL mil jaye (Railway ka ya Cloudflare ka):
 3. APK file generate ho kar yahan save hogi:
    📁 `frontend\build\app\outputs\flutter-apk\app-release.apk`
 
-4. Ye file aap WhatsApp, Google Drive, ya kisi bhi tarike se kisi ko bhi share kar sakte hain. Wo apne Android phone me install karke turant MAANAK use kar payenge!
+4. Ye file aap WhatsApp, Google Drive, ya kisi bhi tarike se kisi ko bhi share kar sakte hain. Wo apne Android phone me install karke turant LM-TRACE use kar payenge!
 
 ---
 

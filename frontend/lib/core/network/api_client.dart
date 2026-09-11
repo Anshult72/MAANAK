@@ -48,7 +48,7 @@ class ApiClient {
                 type: e.type,
                 error: e.error,
                 message:
-                    'Unable to connect to MAANAK server. Please check your internet connection and try again.',
+                    'Unable to connect to LM-TRACE server. Please check your internet connection and try again.',
               ),
             );
           }
@@ -97,7 +97,7 @@ class ApiClient {
                 type: e.type,
                 error: e.error,
                 message:
-                    'MAANAK server encountered an error. Please try again.',
+                    'LM-TRACE server encountered an error. Please try again.',
               ),
             );
           }

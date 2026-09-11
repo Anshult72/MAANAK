@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/constants/app_brand.dart';
 import '../../core/theme/app_theme.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -111,13 +112,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
           // Section 4: System Information
           _buildSettingsGroup(
             title: 'ABOUT APPLICATION',
-            children: const [
+            children: [
               ListTile(
                 dense: true,
-                leading: Icon(Icons.info_outline, color: AppColors.secondaryBlue),
-                title: Text('MAANAK Inspection Platform', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-                subtitle: Text('Automated Legal Metrology Compliance Engine', style: TextStyle(fontSize: 11, color: AppColors.neutral600)),
-                trailing: Text('v1.0.0', style: TextStyle(fontSize: 12, fontFamily: 'monospace', fontWeight: FontWeight.bold)),
+                leading: const Icon(Icons.info_outline, color: AppColors.secondaryBlue),
+                title: Text('${AppBrand.name} Inspection Platform', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                subtitle: const Text('Automated Legal Metrology Compliance Engine', style: TextStyle(fontSize: 11, color: AppColors.neutral600)),
+                trailing: const Text('v1.0.0', style: TextStyle(fontSize: 12, fontFamily: 'monospace', fontWeight: FontWeight.bold)),
               ),
             ],
           ),

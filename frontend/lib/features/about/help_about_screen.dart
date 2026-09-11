@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/constants/app_brand.dart';
 
 class HelpAboutScreen extends StatelessWidget {
   const HelpAboutScreen({super.key});
@@ -9,7 +10,7 @@ class HelpAboutScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: AppColors.neutral50,
       appBar: AppBar(
-        title: const Text('Help & About MAANAK'),
+        title: const Text('Help & About ${AppBrand.name}'),
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),
@@ -32,7 +33,7 @@ class HelpAboutScreen extends StatelessWidget {
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: const Text(
-                      'MAANAK',
+                      AppBrand.name,
                       style: TextStyle(
                         color: Colors.white,
                         fontSize: 22,
@@ -78,13 +79,13 @@ class HelpAboutScreen extends StatelessWidget {
           // Statutory Mandate
           _buildInfoCard(
             title: 'STATUTORY AUTHORITY',
-            children: const [
+            children: [
               Text(
-                'MAANAK automates the enforcement of statutory labeling standards under:',
-                style: TextStyle(fontSize: 12, color: AppColors.neutral700),
+                '${AppBrand.name} automates the enforcement of statutory labeling standards under:',
+                style: const TextStyle(fontSize: 12, color: AppColors.neutral700),
               ),
-              SizedBox(height: 6),
-              Text(
+              const SizedBox(height: 6),
+              const Text(
                 '• The Legal Metrology Act, 2009 (Act No. 1 of 2010)\n• The Legal Metrology (Packaged Commodities) Rules, 2011\n• E-Commerce Amendment Rules, 2017 (GSR 629(E))\n• Unit Sale Price Amendment Rules, 2021 (GSR 779(E))\n• Electronic Products Provisions, 2022 (GSR 529(E))',
                 style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.neutral900, height: 1.5),
               ),
@@ -108,17 +109,17 @@ class HelpAboutScreen extends StatelessWidget {
           // Support & Technical Contact
           _buildInfoCard(
             title: 'ENFORCEMENT SUPPORT',
-            children: const [
-              Text(
+            children: [
+              const Text(
                 'For operational assistance or technical escalation, contact Central Legal Metrology Enforcement Cell:',
                 style: TextStyle(fontSize: 12, color: AppColors.neutral700),
               ),
-              SizedBox(height: 8),
+              const SizedBox(height: 8),
               Row(
                 children: [
-                  Icon(Icons.email_outlined, size: 16, color: AppColors.secondaryBlue),
-                  SizedBox(width: 8),
-                  Text('support@maanak.gov.in', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.secondaryBlue)),
+                  const Icon(Icons.email_outlined, size: 16, color: AppColors.secondaryBlue),
+                  const SizedBox(width: 8),
+                  Text(AppBrand.supportEmail, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.secondaryBlue)),
                 ],
               ),
             ],

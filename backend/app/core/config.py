@@ -6,7 +6,7 @@ from pydantic import Field
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
-    APP_NAME: str = "MAANAK - Legal Metrology Platform"
+    APP_NAME: str = "LM-TRACE - Legal Metrology Platform"
     APP_ENV: str = "development"
     ENVIRONMENT: str = Field(default="development", validation_alias="ENVIRONMENT")
     DEBUG: bool = True

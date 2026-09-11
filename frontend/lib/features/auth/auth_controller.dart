@@ -114,7 +114,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
     } catch (e) {
       state = state.copyWith(
         isLoading: false,
-        errorMessage: "Could not connect to MAANAK server. Please verify backend is running.",
+        errorMessage: "Could not connect to LM-TRACE server. Please verify backend is running.",
       );
       return false;
     }

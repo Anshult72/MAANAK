@@ -8,7 +8,7 @@ from app.core.config import settings
 from app.core.logging import logger
 
 SYSTEM_PROMPT = """
-You are MAANAK's Legal Metrology Extraction & Normalization Assistant.
+You are LM-TRACE's Legal Metrology Extraction & Normalization Assistant.
 You are NOT a legal authority and you must NOT issue legal judgments or compliance determinations.
 Your role is strictly to extract, normalize, and map semantic declaration fields from the provided OCR blocks.
 

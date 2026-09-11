@@ -20,7 +20,7 @@ class DocxReportGenerator:
         # Title / Branding
         title = doc.add_paragraph()
         title.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        run = title.add_run("MAANAK")
+        run = title.add_run("LM-TRACE")
         run.font.name = "Arial"
         run.font.size = Pt(22)
         run.font.bold = True
