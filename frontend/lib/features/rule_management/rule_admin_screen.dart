@@ -356,7 +356,7 @@ class _RuleAdminScreenState extends ConsumerState<RuleAdminScreen> {
                     decoration: BoxDecoration(
                       color: AppColors.primaryNavy.withValues(alpha: 0.08),
                       borderRadius: BorderRadius.circular(4),
-                      border: Border.Border.all(color: AppColors.primaryNavy.withValues(alpha: 0.2)),
+                      border: Border.all(color: AppColors.primaryNavy.withValues(alpha: 0.2)),
                     ),
                     child: Text(
                       code,
@@ -749,7 +749,7 @@ class _RuleDetailBottomSheetState extends ConsumerState<_RuleDetailBottomSheet> 
                   decoration: BoxDecoration(
                     color: AppColors.infoBg,
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.Border.all(color: AppColors.secondaryBlue.withValues(alpha: 0.2)),
+                    border: Border.all(color: AppColors.secondaryBlue.withValues(alpha: 0.2)),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -880,7 +880,7 @@ class _RuleDetailBottomSheetState extends ConsumerState<_RuleDetailBottomSheet> 
                         decoration: BoxDecoration(
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(8),
-                          border: Border.Border.all(color: AppColors.neutral200),
+                          border: Border.all(color: AppColors.neutral200),
                         ),
                         child: Row(
                           children: [
@@ -974,7 +974,7 @@ class _RuleDetailBottomSheetState extends ConsumerState<_RuleDetailBottomSheet> 
                         decoration: BoxDecoration(
                           color: AppColors.neutral50,
                           borderRadius: BorderRadius.circular(6),
-                          border: Border.Border.all(color: AppColors.neutral200),
+                          border: Border.all(color: AppColors.neutral200),
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
