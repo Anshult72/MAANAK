@@ -6,6 +6,8 @@ import '../../core/network/api_client.dart';
 import '../auth/auth_controller.dart';
 import '../inspections/inspections_controller.dart';
 
+import 'widgets/maanak_navigation_drawer.dart';
+
 final dashboardSummaryProvider = FutureProvider<Map<String, dynamic>>((ref) async {
   final client = ref.watch(apiClientProvider);
   try {
@@ -37,8 +39,17 @@ class DashboardScreen extends ConsumerWidget {
 
     return Scaffold(
       backgroundColor: AppColors.neutral50,
+      drawer: const MaanakNavigationDrawer(),
       appBar: AppBar(
+        leading: Builder(
+          builder: (context) => IconButton(
+            icon: const Icon(Icons.menu_rounded, size: 24),
+            tooltip: 'Open navigation menu',
+            onPressed: () => Scaffold.of(context).openDrawer(),
+          ),
+        ),
         title: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -56,51 +67,16 @@ class DashboardScreen extends ConsumerWidget {
                 ),
               ),
             ),
-            const SizedBox(width: 10),
-            const Expanded(
+            const SizedBox(width: 12),
+            const Flexible(
               child: Text(
-                'Legal Metrology Inspection Platform',
+                'Legal Metrology',
                 style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
                 overflow: TextOverflow.ellipsis,
               ),
             ),
           ],
         ),
-        actions: [
-          Container(
-            margin: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
-            decoration: BoxDecoration(
-              color: AppColors.warningBg,
-              border: Border.all(color: AppColors.warning),
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: const Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.shield_outlined, size: 14, color: AppColors.warning),
-                SizedBox(width: 4),
-                Text(
-                  'SIH-2026 DEMO',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.warning,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          IconButton(
-            icon: const Icon(Icons.logout, size: 20),
-            tooltip: 'Logout',
-            onPressed: () {
-              // GoRouter's redirect will automatically navigate to /login
-              // when authProvider state becomes unauthenticated.
-              ref.read(authProvider.notifier).logout();
-            },
-          ),
-        ],
       ),
       body: RefreshIndicator(
         onRefresh: () async {

@@ -19,6 +19,10 @@ import '../../features/products/product_history_screen.dart';
 import '../../features/online_listing/online_listing_screen.dart';
 import '../../features/rule_management/rule_admin_screen.dart';
 import '../../features/supervisor/supervisor_screen.dart';
+import '../../features/profile/officer_profile_screen.dart';
+import '../../features/settings/settings_screen.dart';
+import '../../features/audit/audit_trail_screen.dart';
+import '../../features/about/help_about_screen.dart';
 
 // Stable navigator keys — survive GoRouter refreshes.
 final rootNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'root');
@@ -145,6 +149,22 @@ GoRouter createAppRouter(WidgetRef ref, ValueListenable<int> authNotifier) {
       GoRoute(
         path: '/supervisor',
         builder: (context, state) => const SupervisorScreen(),
+      ),
+      GoRoute(
+        path: '/profile',
+        builder: (context, state) => const OfficerProfileScreen(),
+      ),
+      GoRoute(
+        path: '/settings',
+        builder: (context, state) => const SettingsScreen(),
+      ),
+      GoRoute(
+        path: '/audit-trail',
+        builder: (context, state) => const AuditTrailScreen(),
+      ),
+      GoRoute(
+        path: '/about',
+        builder: (context, state) => const HelpAboutScreen(),
       ),
     ],
   );
