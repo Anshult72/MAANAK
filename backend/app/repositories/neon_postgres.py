@@ -259,14 +259,23 @@ class NeonPostgresRepository(
         async with await self._get_session() as session:
             stmt = select(Inspection)
             if inspector_id:
-                stmt = stmt.where(Inspection.inspector_id == inspector_id)
+                stmt = stmt.where(or_(Inspection.inspector_id == inspector_id, Inspection.inspector_id.is_(None)))
             if status:
                 stmt = stmt.where(Inspection.status == status)
+            if query:
+                stmt = stmt.where(or_(
+                    Inspection.inspection_code.ilike(f"%{query}%"),
+                    Inspection.seller_name.ilike(f"%{query}%"),
+                    Inspection.business_name.ilike(f"%{query}%"),
+                    Inspection.location.ilike(f"%{query}%"),
+                ))
+            stmt = stmt.order_by(Inspection.created_at.desc(), Inspection.inspection_date.desc())
             res = await session.execute(stmt)
             inspections = res.scalars().all()
             return [
                 {
                     "id": ins.id, "inspection_code": ins.inspection_code, "status": ins.status,
+                    "inspector_id": ins.inspector_id,
                     "inspection_type": ins.inspection_type, "location": ins.location,
                     "seller_name": ins.seller_name, "business_name": ins.business_name,
                     "score": ins.score,

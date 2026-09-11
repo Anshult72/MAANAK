@@ -244,7 +244,7 @@ class ScaffoldWithBottomNavBar extends StatelessWidget {
             BottomNavigationBarItem(
               icon: Icon(Icons.qr_code_scanner_outlined),
               activeIcon: Icon(Icons.qr_code_scanner),
-              label: 'Scan & OCR',
+              label: 'Scan',
             ),
             BottomNavigationBarItem(
               icon: Icon(Icons.fingerprint_outlined),
