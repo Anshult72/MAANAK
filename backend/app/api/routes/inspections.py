@@ -410,6 +410,23 @@ async def analyze_product(
 
         await repo.save_compliance_results(inspection_id, check_records, violation_records)
 
+        # Step 6: Generate preprocessed evidence crops & annotated overlays, upload to Cloudinary & persist in Neon
+        evidence_records = []
+        try:
+            evidence_records = await evidence_service.process_inspection_evidence(
+                inspection_id=inspection_id,
+                images=images,
+                declarations=declarations_records,
+                violations=violation_records,
+                checks=check_records,
+            )
+            if evidence_records:
+                saved_ev = await repo.save_evidence_items(inspection_id, evidence_records)
+                evidence_records = saved_ev or evidence_records
+                logger.info("Archived %d evidence items for inspection %s", len(evidence_records), inspection_id)
+        except Exception as ev_err:
+            logger.warning("Evidence processing warning for %s: %s", inspection_id, ev_err)
+
         # Update inspection status & score
         final_status = "NEEDS_REVIEW" if (compliance_assessment.review_count > 0 or compliance_assessment.violation_count > 0) else "READY"
         await repo.update(inspection_id, {
@@ -424,7 +441,8 @@ async def analyze_product(
             "score": compliance_assessment.score,
             "assessment": compliance_assessment.model_dump(),
             "declarations": declarations_records,
-            "correctness_matrix": matrix
+            "correctness_matrix": matrix,
+            "evidence": evidence_records,
         }
     except HTTPException:
         await repo.update(inspection_id, {"status": "DRAFT"})
@@ -433,6 +451,43 @@ async def analyze_product(
         logger.exception("Analysis failed for inspection %s", inspection_id)
         await repo.update(inspection_id, {"status": "DRAFT"})
         raise HTTPException(status_code=500, detail=f"Analysis failed: {exc}") from exc
+
+@router.get("/{inspection_id}/evidence", response_model=List[Dict[str, Any]])
+async def get_inspection_evidence(
+    inspection_id: str,
+    user_payload: dict = Depends(get_current_user_payload)
+):
+    """
+    Returns all preprocessed Cloudinary evidence images, crops, overlays, and SHA-256 integrity digests.
+    """
+    repo = get_repository()
+    ins = await repo.get_by_id(inspection_id)
+    if not ins:
+        raise HTTPException(status_code=404, detail="Inspection not found")
+    return await repo.list_evidence(inspection_id)
+
+@router.post("/{inspection_id}/evidence/{evidence_id}/retry", response_model=Dict[str, Any])
+async def retry_evidence_upload(
+    inspection_id: str,
+    evidence_id: str,
+    user_payload: dict = Depends(get_current_user_payload)
+):
+    """
+    Retries Cloudinary upload for an evidence record without creating duplicate items.
+    """
+    repo = get_repository()
+    ev = await repo.get_evidence_by_id(evidence_id)
+    if not ev:
+        raise HTTPException(status_code=404, detail="Evidence record not found")
+    if ev.get("inspection_id") != inspection_id:
+        raise HTTPException(status_code=400, detail="Evidence does not belong to this inspection")
+
+    try:
+        updated = await evidence_service.retry_evidence_upload(ev, repo)
+        return {"success": True, "evidence": updated}
+    except Exception as e:
+        logger.error("Retry failed for evidence %s: %s", evidence_id, e)
+        raise HTTPException(status_code=500, detail=f"Evidence upload retry failed: {e}")
 
 @router.post("/{inspection_id}/finalize", response_model=Dict[str, Any])
 async def finalize_inspection(

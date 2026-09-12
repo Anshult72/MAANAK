@@ -16,6 +16,8 @@ class EvidenceViewerScreen extends ConsumerStatefulWidget {
 
 class _EvidenceViewerScreenState extends ConsumerState<EvidenceViewerScreen> {
   int _selectedImageIndex = 0;
+  int _selectedEvidenceIndex = 0;
+  bool _viewCloudEvidence = false;
   bool _showOverlays = true;
   String? _selectedFindingId;
 
@@ -27,6 +29,7 @@ class _EvidenceViewerScreenState extends ConsumerState<EvidenceViewerScreen> {
       if (current == null || current.id != widget.inspectionId) {
         ref.read(inspectionsProvider.notifier).fetchInspectionDetail(widget.inspectionId);
       }
+      ref.read(inspectionsProvider.notifier).fetchEvidence(widget.inspectionId);
     });
   }
 
@@ -230,6 +233,113 @@ class _EvidenceViewerScreenState extends ConsumerState<EvidenceViewerScreen> {
     );
   }
 
+  Widget _buildCloudinaryEvidenceWidget(EvidenceModel ev) {
+    final secureUrl = ev.cloudinarySecureUrl;
+    if (secureUrl != null && secureUrl.isNotEmpty) {
+      return Image.network(
+        secureUrl,
+        fit: BoxFit.contain,
+        loadingBuilder: (ctx, child, progress) {
+          if (progress == null) return child;
+          return const Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                CircularProgressIndicator(strokeWidth: 2, color: AppColors.secondaryBlue),
+                SizedBox(height: 12),
+                Text(
+                  "Loading evidence from secure cloud...",
+                  style: TextStyle(color: Colors.white70, fontSize: 11),
+                ),
+              ],
+            ),
+          );
+        },
+        errorBuilder: (ctx, err, stack) {
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.broken_image_outlined, size: 48, color: AppColors.violationRed),
+                  const SizedBox(height: 10),
+                  const Text(
+                    "Unable to load evidence image",
+                    style: TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 6),
+                  const Text(
+                    "The persistent cloud asset could not be retrieved.",
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Colors.white38, fontSize: 11),
+                  ),
+                  const SizedBox(height: 12),
+                  ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.secondaryBlue,
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    ),
+                    onPressed: () {
+                      ref.read(inspectionsProvider.notifier).retryEvidenceUpload(widget.inspectionId, ev.id);
+                    },
+                    icon: const Icon(Icons.refresh, size: 16),
+                    label: const Text("Retry Cloud Archival", style: TextStyle(fontSize: 11)),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      );
+    }
+
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            ev.status == 'UPLOAD_FAILED' ? Icons.cloud_off : Icons.image_search,
+            size: 48,
+            color: Colors.white38,
+          ),
+          const SizedBox(height: 10),
+          Text(
+            ev.status == 'UPLOAD_FAILED'
+                ? "Evidence archive failed"
+                : (ev.status == 'LOCAL_ONLY' ? "Local Preprocessed Crop" : "Evidence is being securely archived..."),
+            style: const TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.bold),
+          ),
+          if (ev.description != null) ...[
+            const SizedBox(height: 4),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Text(
+                ev.description!,
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.white38, fontSize: 11),
+              ),
+            ),
+          ],
+          if (ev.status == 'UPLOAD_FAILED') ...[
+            const SizedBox(height: 10),
+            ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.reviewAmber,
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+              ),
+              onPressed: () {
+                ref.read(inspectionsProvider.notifier).retryEvidenceUpload(widget.inspectionId, ev.id);
+              },
+              icon: const Icon(Icons.cloud_upload, size: 14),
+              label: const Text("Retry Upload", style: TextStyle(fontSize: 11)),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final inspectionState = ref.watch(inspectionsProvider);
@@ -237,6 +347,8 @@ class _EvidenceViewerScreenState extends ConsumerState<EvidenceViewerScreen> {
 
     final rawImages = inspection?.images ?? [];
     final images = rawImages.whereType<Map>().map((m) => Map<String, dynamic>.from(m)).toList();
+
+    final evidenceItems = inspection?.evidenceItems ?? [];
 
     final rawViolations = inspection?.violations ?? [];
     final violations = rawViolations.whereType<Map>().map((m) => Map<String, dynamic>.from(m)).toList();
@@ -247,6 +359,9 @@ class _EvidenceViewerScreenState extends ConsumerState<EvidenceViewerScreen> {
     // Clamp safe image index
     final safeIndex = images.isNotEmpty ? _selectedImageIndex.clamp(0, images.length - 1) : 0;
     final currentImg = images.isNotEmpty ? images[safeIndex] : null;
+
+    final safeEvIndex = evidenceItems.isNotEmpty ? _selectedEvidenceIndex.clamp(0, evidenceItems.length - 1) : 0;
+    final currentEv = evidenceItems.isNotEmpty ? evidenceItems[safeEvIndex] : null;
 
     // Filter declarations relevant to the current surface/image
     final currentImgId = currentImg?['id']?.toString();
@@ -285,8 +400,89 @@ class _EvidenceViewerScreenState extends ConsumerState<EvidenceViewerScreen> {
       ),
       body: Column(
         children: [
-          // Surface selector bar (if multiple package photos exist)
-          if (images.length > 1)
+          // Mode Toggle Selector: Full Package Photos vs Cloud Evidence Crops
+          if (evidenceItems.isNotEmpty)
+            Container(
+              color: const Color(0xFF0B1120),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Row(
+                children: [
+                  ChoiceChip(
+                    label: Text("Evidence Crops & Overlays (${evidenceItems.length})"),
+                    selected: _viewCloudEvidence,
+                    selectedColor: AppColors.secondaryBlue,
+                    labelStyle: TextStyle(
+                      color: _viewCloudEvidence ? Colors.white : Colors.white70,
+                      fontSize: 11,
+                      fontWeight: _viewCloudEvidence ? FontWeight.bold : FontWeight.normal,
+                    ),
+                    backgroundColor: const Color(0xFF1E293B),
+                    onSelected: (val) {
+                      if (val) setState(() => _viewCloudEvidence = true);
+                    },
+                  ),
+                  const SizedBox(width: 8),
+                  ChoiceChip(
+                    label: Text("Full Package Photos (${images.length})"),
+                    selected: !_viewCloudEvidence,
+                    selectedColor: AppColors.secondaryBlue,
+                    labelStyle: TextStyle(
+                      color: !_viewCloudEvidence ? Colors.white : Colors.white70,
+                      fontSize: 11,
+                      fontWeight: !_viewCloudEvidence ? FontWeight.bold : FontWeight.normal,
+                    ),
+                    backgroundColor: const Color(0xFF1E293B),
+                    onSelected: (val) {
+                      if (val) setState(() => _viewCloudEvidence = false);
+                    },
+                  ),
+                ],
+              ),
+            ),
+
+          // Evidence / Surface Selector Bar
+          if (_viewCloudEvidence && evidenceItems.isNotEmpty)
+            Container(
+              color: const Color(0xFF0F172A),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: List.generate(evidenceItems.length, (idx) {
+                    final ev = evidenceItems[idx];
+                    final isSelected = idx == safeEvIndex;
+                    final label = ev.evidenceType.replaceAll('_', ' ');
+                    return Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: ChoiceChip(
+                        avatar: Icon(
+                          ev.evidenceType == 'ANNOTATED_OVERLAY'
+                              ? Icons.layers
+                              : (ev.evidenceType == 'VIOLATION_EVIDENCE'
+                                  ? Icons.warning_amber
+                                  : Icons.crop_free),
+                          size: 14,
+                          color: isSelected ? Colors.white : Colors.white70,
+                        ),
+                        label: Text(label),
+                        selected: isSelected,
+                        selectedColor: AppColors.secondaryBlue,
+                        labelStyle: TextStyle(
+                          color: isSelected ? Colors.white : Colors.white70,
+                          fontSize: 11,
+                          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                        ),
+                        backgroundColor: const Color(0xFF1E293B),
+                        onSelected: (val) {
+                          if (val) setState(() => _selectedEvidenceIndex = idx);
+                        },
+                      ),
+                    );
+                  }),
+                ),
+              ),
+            )
+          else if (images.length > 1)
             Container(
               color: const Color(0xFF0F172A),
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -326,8 +522,8 @@ class _EvidenceViewerScreenState extends ConsumerState<EvidenceViewerScreen> {
               width: double.infinity,
               color: const Color(0xFF0F172A),
               child: InteractiveViewer(
-                minScale: 0.8,
-                maxScale: 4.0,
+                minScale: 0.5,
+                maxScale: 5.0,
                 child: Center(
                   child: Container(
                     width: 340,
@@ -342,8 +538,10 @@ class _EvidenceViewerScreenState extends ConsumerState<EvidenceViewerScreen> {
                     child: Stack(
                       fit: StackFit.expand,
                       children: [
-                        // Real Captured Commodity Photo
-                        if (currentImg != null)
+                        // Display either Cloud Evidence Crop or Package Photo
+                        if (_viewCloudEvidence && currentEv != null)
+                          _buildCloudinaryEvidenceWidget(currentEv)
+                        else if (currentImg != null)
                           _buildImageWidget(currentImg)
                         else
                           Center(
@@ -362,6 +560,87 @@ class _EvidenceViewerScreenState extends ConsumerState<EvidenceViewerScreen> {
                                   style: TextStyle(color: Colors.white38, fontSize: 11),
                                 ),
                               ],
+                            ),
+                          ),
+
+                        // If viewing Cloud Evidence: Overlay SHA-256 and metadata badges at bottom
+                        if (_viewCloudEvidence && currentEv != null)
+                          Positioned(
+                            bottom: 8,
+                            left: 8,
+                            right: 8,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                              decoration: BoxDecoration(
+                                color: Colors.black.withValues(alpha: 0.85),
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(color: Colors.white24),
+                              ),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Flexible(
+                                        child: Text(
+                                          currentEv.evidenceType.replaceAll('_', ' '),
+                                          style: const TextStyle(
+                                            color: Color(0xFF93C5FD),
+                                            fontSize: 10.5,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                        decoration: BoxDecoration(
+                                          color: currentEv.status == 'STORED'
+                                              ? AppColors.passGreen.withValues(alpha: 0.3)
+                                              : (currentEv.status == 'UPLOAD_FAILED'
+                                                  ? AppColors.violationRed.withValues(alpha: 0.3)
+                                                  : AppColors.reviewAmber.withValues(alpha: 0.3)),
+                                          borderRadius: BorderRadius.circular(4),
+                                        ),
+                                        child: Text(
+                                          currentEv.status,
+                                          style: TextStyle(
+                                            fontSize: 9,
+                                            fontWeight: FontWeight.bold,
+                                            color: currentEv.status == 'STORED'
+                                                ? AppColors.passGreen
+                                                : (currentEv.status == 'UPLOAD_FAILED'
+                                                    ? AppColors.violationRed
+                                                    : AppColors.reviewAmber),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  if (currentEv.sha256 != null) ...[
+                                    const SizedBox(height: 3),
+                                    Row(
+                                      children: [
+                                        const Icon(Icons.lock_outline, size: 10, color: Colors.white70),
+                                        const SizedBox(width: 4),
+                                        Flexible(
+                                          child: Text(
+                                            "SHA-256: ${currentEv.sha256!.substring(0, 16)}...",
+                                            style: const TextStyle(
+                                              color: Colors.white70,
+                                              fontSize: 9.5,
+                                              fontFamily: 'monospace',
+                                            ),
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ],
+                              ),
                             ),
                           ),
 

@@ -3,6 +3,74 @@ import 'package:dio/dio.dart';
 import '../../core/network/api_client.dart';
 import '../../core/constants/api_constants.dart';
 
+class EvidenceModel {
+  final String id;
+  final String inspectionId;
+  final String? imageId;
+  final String? findingId;
+  final String evidenceType;
+  final String? originalPath;
+  final String? cropPath;
+  final Map<String, dynamic>? bbox;
+  final String? description;
+  final String? cloudinaryPublicId;
+  final String? cloudinarySecureUrl;
+  final String? thumbnailUrl;
+  final int? width;
+  final int? height;
+  final int? fileSizeBytes;
+  final String? sha256;
+  final String status;
+  final String? createdBy;
+  final String? createdAt;
+
+  EvidenceModel({
+    required this.id,
+    required this.inspectionId,
+    this.imageId,
+    this.findingId,
+    this.evidenceType = 'DECLARATION_CROP',
+    this.originalPath,
+    this.cropPath,
+    this.bbox,
+    this.description,
+    this.cloudinaryPublicId,
+    this.cloudinarySecureUrl,
+    this.thumbnailUrl,
+    this.width,
+    this.height,
+    this.fileSizeBytes,
+    this.sha256,
+    this.status = 'STORED',
+    this.createdBy,
+    this.createdAt,
+  });
+
+  factory EvidenceModel.fromJson(Map<String, dynamic> json) {
+    return EvidenceModel(
+      id: json['id']?.toString() ?? '',
+      inspectionId: json['inspection_id']?.toString() ?? '',
+      imageId: json['image_id']?.toString(),
+      findingId: json['finding_id']?.toString(),
+      evidenceType: json['evidence_type']?.toString() ?? 'DECLARATION_CROP',
+      originalPath: json['original_path']?.toString(),
+      cropPath: json['crop_path']?.toString(),
+      bbox: json['bbox'] is Map ? Map<String, dynamic>.from(json['bbox']) : null,
+      description: json['description']?.toString(),
+      cloudinaryPublicId: json['cloudinary_public_id']?.toString(),
+      cloudinarySecureUrl: json['cloudinary_secure_url']?.toString() ?? json['cloudinaryUrl']?.toString(),
+      thumbnailUrl: json['thumbnail_url']?.toString() ?? json['thumbnailUrl']?.toString(),
+      width: json['width'] is int ? json['width'] : (json['width'] as num?)?.toInt(),
+      height: json['height'] is int ? json['height'] : (json['height'] as num?)?.toInt(),
+      fileSizeBytes: json['file_size_bytes'] is int ? json['file_size_bytes'] : (json['file_size_bytes'] as num?)?.toInt(),
+      sha256: json['sha256']?.toString(),
+      status: json['status']?.toString() ?? 'STORED',
+      createdBy: json['created_by']?.toString(),
+      createdAt: json['created_at']?.toString(),
+    );
+  }
+}
+
 class InspectionModel {
   final String id;
   final String inspectionCode;
@@ -26,6 +94,7 @@ class InspectionModel {
   final List<dynamic> declarations;
   final List<dynamic> checks;
   final List<dynamic> violations;
+  final List<EvidenceModel> evidenceItems;
 
   InspectionModel({
     required this.id,
@@ -50,9 +119,19 @@ class InspectionModel {
     this.declarations = const [],
     this.checks = const [],
     this.violations = const [],
+    this.evidenceItems = const [],
   });
 
   factory InspectionModel.fromJson(Map<String, dynamic> json) {
+    List<EvidenceModel> evItems = [];
+    final rawEv = json['evidence_items'] ?? json['evidence'];
+    if (rawEv is List) {
+      evItems = rawEv
+          .whereType<Map>()
+          .map((e) => EvidenceModel.fromJson(Map<String, dynamic>.from(e)))
+          .toList();
+    }
+
     return InspectionModel(
       id: json['id'] ?? '',
       inspectionCode: json['inspection_code'] ?? json['inspectionCode'] ?? 'INS-000',
@@ -76,6 +155,7 @@ class InspectionModel {
       declarations: json['declarations'] ?? [],
       checks: json['checks'] ?? [],
       violations: json['violations'] ?? [],
+      evidenceItems: evItems,
     );
   }
 }
@@ -196,26 +276,49 @@ class InspectionsNotifier extends StateNotifier<InspectionState> {
         return data;
       }
     } catch (e) {
+      // Check if the server finished processing in the background
+      try {
+        final verifiedDetail = await fetchInspectionDetail(inspectionId);
+        if (verifiedDetail != null) {
+          final s = verifiedDetail.status.toUpperCase();
+          if (['NEEDS_REVIEW', 'READY', 'COMPLIANT', 'VIOLATION', 'COMPLETED', 'FINALIZED'].contains(s) &&
+              (verifiedDetail.declarations.isNotEmpty ||
+                  verifiedDetail.checks.isNotEmpty ||
+                  (verifiedDetail.score != null && verifiedDetail.score! > 0))) {
+            state = state.copyWith(isLoading: false, errorMessage: null);
+            return {
+              "success": true,
+              "status": s,
+              "score": verifiedDetail.score,
+            };
+          }
+        }
+      } catch (_) {}
+
       String message = "Analysis could not be completed. Please retry in a moment.";
       if (e is DioException) {
-        final responseData = e.response?.data;
-        if (responseData is Map) {
-          if (responseData['detail'] is String) {
-            message = responseData['detail'] as String;
-          } else if (responseData['error'] is Map) {
-            final errorMap = responseData['error'] as Map;
-            message = (errorMap['details'] as String?) ??
-                (errorMap['message'] as String?) ??
-                message;
-          } else if (responseData['message'] is String) {
-            message = responseData['message'] as String;
+        if (e.type == DioExceptionType.receiveTimeout || e.type == DioExceptionType.connectionTimeout) {
+          message = "Analysis is still processing on the server. Please click Retry Pipeline to check status.";
+        } else {
+          final responseData = e.response?.data;
+          if (responseData is Map) {
+            if (responseData['detail'] is String) {
+              message = responseData['detail'] as String;
+            } else if (responseData['error'] is Map) {
+              final errorMap = responseData['error'] as Map;
+              message = (errorMap['details'] as String?) ??
+                  (errorMap['message'] as String?) ??
+                  message;
+            } else if (responseData['message'] is String) {
+              message = responseData['message'] as String;
+            }
+          } else if (responseData is String && responseData.isNotEmpty && !responseData.contains("<html")) {
+            message = responseData;
+          } else if (e.response?.statusCode == 503) {
+            message = "Image analysis service is temporarily busy. Please retry in a moment.";
+          } else if (e.response?.statusCode != null) {
+            message = "The server could not complete this analysis (${e.response?.statusCode}). Please retry.";
           }
-        } else if (responseData is String && responseData.isNotEmpty && !responseData.contains("<html")) {
-          message = responseData;
-        } else if (e.response?.statusCode == 503) {
-          message = "Image analysis service is temporarily busy. Please retry in a moment.";
-        } else if (e.response?.statusCode != null) {
-          message = "The server could not complete this analysis (${e.response?.statusCode}). Please retry.";
         }
       }
       state = state.copyWith(isLoading: false, errorMessage: message);
@@ -341,6 +444,63 @@ class InspectionsNotifier extends StateNotifier<InspectionState> {
     } catch (e) {
       state = state.copyWith(isLoading: false, errorMessage: e.toString());
     }
+    return false;
+  }
+
+  Future<List<EvidenceModel>> fetchEvidence(String inspectionId) async {
+    try {
+      final response = await _apiClient.get("${ApiConstants.inspections}/$inspectionId/evidence");
+      if (response.statusCode == 200 && response.data is List) {
+        final items = (response.data as List)
+            .whereType<Map>()
+            .map((e) => EvidenceModel.fromJson(Map<String, dynamic>.from(e)))
+            .toList();
+
+        // Update selected inspection with fresh evidence items
+        if (state.selectedInspection != null && state.selectedInspection!.id == inspectionId) {
+          final updated = InspectionModel(
+            id: state.selectedInspection!.id,
+            inspectionCode: state.selectedInspection!.inspectionCode,
+            inspectorId: state.selectedInspection!.inspectorId,
+            productId: state.selectedInspection!.productId,
+            inspectionType: state.selectedInspection!.inspectionType,
+            inspectionDate: state.selectedInspection!.inspectionDate,
+            location: state.selectedInspection!.location,
+            sellerName: state.selectedInspection!.sellerName,
+            businessName: state.selectedInspection!.businessName,
+            status: state.selectedInspection!.status,
+            score: state.selectedInspection!.score,
+            packageType: state.selectedInspection!.packageType,
+            packageConstructionType: state.selectedInspection!.packageConstructionType,
+            calibrationStatus: state.selectedInspection!.calibrationStatus,
+            calibrationData: state.selectedInspection!.calibrationData,
+            pdpData: state.selectedInspection!.pdpData,
+            appliedRuleVersion: state.selectedInspection!.appliedRuleVersion,
+            notes: state.selectedInspection!.notes,
+            images: state.selectedInspection!.images,
+            declarations: state.selectedInspection!.declarations,
+            checks: state.selectedInspection!.checks,
+            violations: state.selectedInspection!.violations,
+            evidenceItems: items,
+          );
+          state = state.copyWith(selectedInspection: updated);
+        }
+        return items;
+      }
+    } catch (_) {}
+    return [];
+  }
+
+  Future<bool> retryEvidenceUpload(String inspectionId, String evidenceId) async {
+    try {
+      final response = await _apiClient.post(
+        "${ApiConstants.inspections}/$inspectionId/evidence/$evidenceId/retry",
+      );
+      if (response.statusCode == 200) {
+        await fetchEvidence(inspectionId);
+        return true;
+      }
+    } catch (_) {}
     return false;
   }
 

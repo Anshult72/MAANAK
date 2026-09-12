@@ -29,24 +29,37 @@ def run_migrations_offline() -> None:
     with context.begin_transaction():
         context.run_migrations()
 
+def do_run_migrations(connection) -> None:
+    context.configure(connection=connection, target_metadata=target_metadata)
+    with context.begin_transaction():
+        context.run_migrations()
+
+async def run_async_migrations() -> None:
+    import asyncio
+    from sqlalchemy.engine import make_url
+    from sqlalchemy.ext.asyncio import create_async_engine
+    
+    url = settings.DATABASE_URL or "postgresql+asyncpg://dummy:dummy@localhost:5432/dummy"
+    if url.startswith("postgresql://"):
+        url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
+    elif url.startswith("postgres://"):
+        url = url.replace("postgres://", "postgresql+asyncpg://", 1)
+
+    parsed_url = make_url(url)
+    query = dict(parsed_url.query)
+    if query.pop("sslmode", None):
+        query["ssl"] = "require"
+    query.pop("channel_binding", None)
+    url = parsed_url.set(query=query).render_as_string(hide_password=False)
+
+    connectable = create_async_engine(url, poolclass=pool.NullPool)
+    async with connectable.connect() as connection:
+        await connection.run_sync(do_run_migrations)
+    await connectable.dispose()
+
 def run_migrations_online() -> None:
-    # Synchronous URL for Alembic migration commands
-    url = (settings.DATABASE_URL or "postgresql://dummy:dummy@localhost:5432/dummy").replace("+asyncpg", "")
-    configuration = config.get_section(config.config_ini_section)
-    configuration["sqlalchemy.url"] = url
-    connectable = engine_from_config(
-        configuration,
-        prefix="sqlalchemy.",
-        poolclass=pool.NullPool,
-    )
-
-    with connectable.connect() as connection:
-        context.configure(
-            connection=connection, target_metadata=target_metadata
-        )
-
-        with context.begin_transaction():
-            context.run_migrations()
+    import asyncio
+    asyncio.run(run_async_migrations())
 
 if context.is_offline_mode():
     run_migrations_offline()

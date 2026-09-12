@@ -17,9 +17,9 @@ class ApiClient {
         baseUrl: ApiConstants.baseUrl,
         connectTimeout: const Duration(seconds: 15),
         // Vision OCR plus declaration extraction can take longer on a cold
-        // Railway instance. Do not cancel a real analysis after 25 seconds.
-        receiveTimeout: const Duration(seconds: 180),
-        sendTimeout: const Duration(seconds: 120),
+        // Railway instance with multiple high-res surfaces.
+        receiveTimeout: const Duration(seconds: 300),
+        sendTimeout: const Duration(seconds: 180),
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',

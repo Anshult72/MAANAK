@@ -235,6 +235,30 @@ class InspectionUpdate(BaseModel):
     package_type: Optional[str] = None
     package_construction_type: Optional[str] = None
 
+class EvidenceResponse(BaseModel):
+    id: str
+    inspection_id: str
+    image_id: Optional[str] = None
+    finding_id: Optional[str] = None
+    evidence_type: str = "DECLARATION_CROP"
+    original_path: str
+    crop_path: Optional[str] = None
+    bbox: Optional[Dict[str, Any]] = None
+    description: Optional[str] = None
+    cloudinary_public_id: Optional[str] = None
+    cloudinary_secure_url: Optional[str] = None
+    cloudinary_resource_type: Optional[str] = "image"
+    cloudinary_format: Optional[str] = None
+    thumbnail_url: Optional[str] = None
+    width: Optional[int] = None
+    height: Optional[int] = None
+    file_size_bytes: Optional[int] = None
+    sha256: Optional[str] = None
+    etag: Optional[str] = None
+    status: str = "STORED"
+    created_by: Optional[str] = None
+    created_at: datetime
+
 class InspectionResponse(BaseModel):
     id: str
     inspection_code: str
@@ -258,6 +282,7 @@ class InspectionResponse(BaseModel):
     finalized_at: Optional[datetime] = None
     images: List[ImageResponse] = []
     declarations: List[DeclarationResponse] = []
+    evidence_items: List[EvidenceResponse] = []
 
 # --- FINDINGS & VERIFICATION ---
 class FindingConfirmRequest(BaseModel):

@@ -154,7 +154,7 @@ def _build_report_model(ins: Dict[str, Any], user_payload: Dict[str, Any], versi
         declarations=formatted_declarations,
         compliance_checks=formatted_checks,
         findings=ins.get("violations", []),
-        evidence_images=[],
+        evidence_images=ins.get("evidence_items", []),
         inspector_remarks=ins.get("notes"),
         disclaimer="This document represents an AI-assisted inspection assessment generated from the captured evidence and configured compliance rules. It is intended to assist authorized personnel. Final regulatory determination and enforcement action remain with the competent authority/authorized officer.",
         generated_at=get_utc_now_iso()

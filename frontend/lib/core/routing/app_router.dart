@@ -94,82 +94,81 @@ GoRouter createAppRouter(WidgetRef ref, ValueListenable<int> authNotifier) {
             path: '/rules',
             builder: (context, state) => const RuleAdminScreen(),
           ),
+          // Detail & Workflow Screens inside shell for consistent desktop sidebar
+          GoRoute(
+            path: '/new-inspection',
+            builder: (context, state) => const NewInspectionScreen(),
+          ),
+          GoRoute(
+            path: '/inspections/:id',
+            builder: (context, state) {
+              final id = state.pathParameters['id'] ?? '';
+              return InspectionDetailScreen(inspectionId: id);
+            },
+          ),
+          GoRoute(
+            path: '/calibration',
+            builder: (context, state) {
+              final id = state.uri.queryParameters['inspectionId'] ?? 'ins-001';
+              return CalibrationScreen(inspectionId: id);
+            },
+          ),
+          GoRoute(
+            path: '/evidence/:id',
+            builder: (context, state) {
+              final id = state.pathParameters['id'] ?? '';
+              return EvidenceViewerScreen(inspectionId: id);
+            },
+          ),
+          GoRoute(
+            path: '/analysis-progress/:id',
+            builder: (context, state) {
+              final id = state.pathParameters['id'] ?? '';
+              return AnalysisProgressScreen(inspectionId: id);
+            },
+          ),
+          GoRoute(
+            path: '/reports/:id',
+            builder: (context, state) {
+              final id = state.pathParameters['id'] ?? '';
+              return ReportPreviewScreen(inspectionId: id);
+            },
+          ),
+          GoRoute(
+            path: '/products/:id',
+            builder: (context, state) {
+              final id = state.pathParameters['id'] ?? '';
+              return ProductHistoryScreen(productId: id);
+            },
+          ),
+          GoRoute(
+            path: '/online-listing',
+            builder: (context, state) {
+              final id = state.uri.queryParameters['inspectionId'];
+              return OnlineListingScreen(inspectionId: id);
+            },
+          ),
+          GoRoute(
+            path: '/supervisor',
+            builder: (context, state) => const SupervisorScreen(),
+          ),
+          GoRoute(
+            path: '/profile',
+            builder: (context, state) => const OfficerProfileScreen(),
+          ),
+          GoRoute(
+            path: '/settings',
+            builder: (context, state) => const SettingsScreen(),
+          ),
+          GoRoute(
+            path: '/audit-trail',
+            builder: (context, state) => const AuditTrailScreen(),
+          ),
+          GoRoute(
+            path: '/about',
+            builder: (context, state) => const HelpAboutScreen(),
+          ),
         ],
-      ),
-
-      // Detail & Workflow Screens
-      GoRoute(
-        path: '/new-inspection',
-        builder: (context, state) => const NewInspectionScreen(),
-      ),
-      GoRoute(
-        path: '/inspections/:id',
-        builder: (context, state) {
-          final id = state.pathParameters['id'] ?? '';
-          return InspectionDetailScreen(inspectionId: id);
-        },
-      ),
-      GoRoute(
-        path: '/calibration',
-        builder: (context, state) {
-          final id = state.uri.queryParameters['inspectionId'] ?? 'ins-001';
-          return CalibrationScreen(inspectionId: id);
-        },
-      ),
-      GoRoute(
-        path: '/evidence/:id',
-        builder: (context, state) {
-          final id = state.pathParameters['id'] ?? '';
-          return EvidenceViewerScreen(inspectionId: id);
-        },
-      ),
-      GoRoute(
-        path: '/analysis-progress/:id',
-        builder: (context, state) {
-          final id = state.pathParameters['id'] ?? '';
-          return AnalysisProgressScreen(inspectionId: id);
-        },
-      ),
-      GoRoute(
-        path: '/reports/:id',
-        builder: (context, state) {
-          final id = state.pathParameters['id'] ?? '';
-          return ReportPreviewScreen(inspectionId: id);
-        },
-      ),
-      GoRoute(
-        path: '/products/:id',
-        builder: (context, state) {
-          final id = state.pathParameters['id'] ?? '';
-          return ProductHistoryScreen(productId: id);
-        },
-      ),
-      GoRoute(
-        path: '/online-listing',
-        builder: (context, state) {
-          final id = state.uri.queryParameters['inspectionId'];
-          return OnlineListingScreen(inspectionId: id);
-        },
-      ),
-      GoRoute(
-        path: '/supervisor',
-        builder: (context, state) => const SupervisorScreen(),
-      ),
-      GoRoute(
-        path: '/profile',
-        builder: (context, state) => const OfficerProfileScreen(),
-      ),
-      GoRoute(
-        path: '/settings',
-        builder: (context, state) => const SettingsScreen(),
-      ),
-      GoRoute(
-        path: '/audit-trail',
-        builder: (context, state) => const AuditTrailScreen(),
-      ),
-      GoRoute(
-        path: '/about',
-        builder: (context, state) => const HelpAboutScreen(),
       ),
     ],
   );
@@ -179,6 +178,14 @@ class ScaffoldWithBottomNavBar extends StatelessWidget {
   final Widget child;
 
   const ScaffoldWithBottomNavBar({super.key, required this.child});
+
+  bool _isMainTab(String location) {
+    return location == '/dashboard' ||
+        location == '/inspections' ||
+        location == '/scanner' ||
+        location == '/products' ||
+        location == '/rules';
+  }
 
   int _calculateSelectedIndex(BuildContext context) {
     final location = GoRouterState.of(context).matchedLocation;
@@ -212,6 +219,11 @@ class ScaffoldWithBottomNavBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final location = GoRouterState.of(context).matchedLocation;
+    if (!_isMainTab(location)) {
+      return child;
+    }
+
     final currentIndex = _calculateSelectedIndex(context);
 
     return Scaffold(

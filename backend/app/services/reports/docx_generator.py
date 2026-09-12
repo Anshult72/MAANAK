@@ -1,9 +1,12 @@
 import io
+import os
+import urllib.request
 from docx import Document
 from docx.shared import Inches, Pt, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.enum.table import WD_TABLE_ALIGNMENT
 from app.schemas.domain import InspectionReportModel
+from app.core.logging import logger
 
 class DocxReportGenerator:
     @staticmethod
@@ -113,8 +116,55 @@ class DocxReportGenerator:
 
         doc.add_paragraph().paragraph_format.space_after = Pt(10)
 
-        # 5. Inspector Remarks & Disclaimers
-        doc.add_heading("4. Inspector Remarks & Regulatory Disclaimer", level=2)
+        # 5. Visual Evidence & Forensic Crops
+        if report_data.evidence_images:
+            doc.add_heading("4. Visual Evidence & Forensic Crops", level=2)
+            ev_count = 0
+            for ev in report_data.evidence_images:
+                if ev_count >= 6:
+                    break
+                sec_url = ev.get("cloudinary_secure_url")
+                local_path = ev.get("crop_path")
+                ev_type = ev.get("evidence_type", "EVIDENCE")
+                sha = ev.get("sha256", "N/A")
+                desc = ev.get("description", "")
+
+                img_bytes = None
+                if sec_url:
+                    try:
+                        req = urllib.request.Request(sec_url, headers={"User-Agent": "LM-Trace-ReportGen/1.0"})
+                        with urllib.request.urlopen(req, timeout=3) as resp:
+                            img_bytes = resp.read()
+                    except Exception as dl_err:
+                        logger.debug("Could not fetch remote Cloudinary image %s: %s", sec_url, dl_err)
+
+                if not img_bytes and local_path and os.path.exists(local_path):
+                    try:
+                        with open(local_path, "rb") as f:
+                            img_bytes = f.read()
+                    except Exception:
+                        pass
+
+                if img_bytes:
+                    try:
+                        p_img = doc.add_paragraph()
+                        p_img.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                        run_img = p_img.add_run()
+                        run_img.add_picture(io.BytesIO(img_bytes), width=Inches(3.5))
+
+                        p_cap = doc.add_paragraph()
+                        p_cap.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                        cap_run = p_cap.add_run(f"[{ev_type}] {desc} | SHA-256: {sha[:16]}...")
+                        cap_run.font.size = Pt(8)
+                        cap_run.font.italic = True
+                        ev_count += 1
+                    except Exception as embed_err:
+                        logger.warning("Could not embed evidence image in DOCX: %s", embed_err)
+
+            doc.add_paragraph().paragraph_format.space_after = Pt(10)
+
+        # 6. Inspector Remarks & Disclaimers
+        doc.add_heading("5. Inspector Remarks & Regulatory Disclaimer", level=2)
         p_rem = doc.add_paragraph()
         p_rem.add_run("Inspector Observations & Orders:\n").bold = True
         p_rem.add_run(report_data.inspector_remarks or "Inspection completed with visual evidence and digital audit trail recorded.")

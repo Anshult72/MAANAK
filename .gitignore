@@ -15,9 +15,12 @@ __pycache__/
 backend/storage/images/*
 backend/storage/reports/*
 backend/storage/audit/*
+backend/storage/evidence/*
+backend/storage/inspections/*
 !backend/storage/images/.gitkeep
 !backend/storage/reports/.gitkeep
 !backend/storage/audit/.gitkeep
+!backend/storage/evidence/.gitkeep
 
 # Flutter / Dart / Android / iOS
 frontend/.dart_tool/

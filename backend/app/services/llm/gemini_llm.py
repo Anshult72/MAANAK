@@ -177,21 +177,29 @@ class GeminiLlmService(ILlmService):
             quantity.canonical_unit = quantity.unit
         mrp = field("mrp", r"\bmrp\b|retail sale price", value_pattern=r"(?:mrp\s*[:₹]?\s*)?(₹?\s*\d+(?:\.\d{1,2})?)")
         if mrp is None:
-            mrp = field("mrp", r"^\s*\d+\.\d{2}\s*$", value_pattern=r"(\d+\.\d{2})")
+            mrp = field("mrp", r"\b\d{2,3}\.\d{2}\b", value_pattern=r"(\d{2,3}\.\d{2})")
         def labelled_date(name: str, label_pattern: str):
             for index, block in enumerate(blocks):
                 if re.search(label_pattern, block.text, re.I):
-                    for candidate in blocks[index:index + 4]:
-                        match = re.search(r"(\d{2}/\d{2})", candidate.text)
+                    for candidate in blocks[index:index + 5]:
+                        match = re.search(r"(\d{2}/\d{2,4})", candidate.text)
                         if match:
                             value = match.group(1)
                             return SemanticDeclarationField(field_name=name, value=value, normalized_value=value,
                                 confidence=candidate.confidence, source_block_id=candidate.block_id,
                                 source_image_id=candidate.image_id, source_text=candidate.text,
                                 bbox=candidate.bbox, provenance="OCR_EXTRACTED")
+            for block in blocks:
+                match = re.search(r"\b(\d{2}/\d{2,4})\b", block.text)
+                if match:
+                    value = match.group(1)
+                    return SemanticDeclarationField(field_name=name, value=value, normalized_value=value,
+                        confidence=block.confidence, source_block_id=block.block_id,
+                        source_image_id=block.image_id, source_text=block.text,
+                        bbox=block.bbox, provenance="OCR_EXTRACTED")
             return None
-        packed = labelled_date("packing_date", r"packed\s*on|packed")
-        use_by = labelled_date("use_by", r"use\s*by|best\s*before")
+        packed = labelled_date("packing_date", r"packed\s*on|packed|mfg")
+        use_by = labelled_date("use_by", r"use\s*by|best\s*before|exp")
         manufacturer_name = field("manufacturer_name", r"\b(?:manufactured|marketed)\s+by\b|\b(?:pvt|ltd)\b")
         for block in blocks:
             if re.search(r"NILONS\s+ENTERPRISES", block.text, re.I):

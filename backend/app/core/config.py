@@ -37,6 +37,15 @@ class Settings(BaseSettings):
     # Local server-side prototype storage.
     # On Railway, set this to the volume mount path for persistence.
     STORAGE_ROOT: str = Field(default="storage", validation_alias="STORAGE_ROOT")
+
+    # Cloudinary Object Storage for Inspection Evidence Images
+    CLOUDINARY_CLOUD_NAME: Optional[str] = Field(default=None, validation_alias="CLOUDINARY_CLOUD_NAME")
+    CLOUDINARY_API_KEY: Optional[str] = Field(default=None, validation_alias="CLOUDINARY_API_KEY")
+    CLOUDINARY_API_SECRET: Optional[str] = Field(default=None, validation_alias="CLOUDINARY_API_SECRET")
+    CLOUDINARY_FOLDER: str = Field(default="lm_trace/evidence", validation_alias="CLOUDINARY_FOLDER")
+    CLOUDINARY_SECURE: bool = Field(default=True, validation_alias="CLOUDINARY_SECURE")
+    CLOUDINARY_ENABLED: bool = Field(default=True, validation_alias="CLOUDINARY_ENABLED")
+    MAX_EVIDENCE_IMAGE_SIZE_MB: int = Field(default=15, validation_alias="MAX_EVIDENCE_IMAGE_SIZE_MB")
     
     # CORS
     CORS_ORIGINS: str = "*"
@@ -54,5 +63,13 @@ class Settings(BaseSettings):
     @property
     def is_production(self) -> bool:
         return self.APP_ENV == "production" or self.ENVIRONMENT == "production"
+
+    @property
+    def cloudinary_configured(self) -> bool:
+        return bool(self.CLOUDINARY_CLOUD_NAME and self.CLOUDINARY_API_KEY and self.CLOUDINARY_API_SECRET)
+
+    @property
+    def cloudinary_active(self) -> bool:
+        return self.CLOUDINARY_ENABLED and self.cloudinary_configured
 
 settings = Settings()

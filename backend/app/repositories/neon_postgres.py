@@ -192,6 +192,9 @@ class NeonPostgresRepository(
             violations = (await session.execute(
                 select(Violation).where(Violation.inspection_id == actual_id)
             )).scalars().all()
+            evidence_records = (await session.execute(
+                select(Evidence).where(Evidence.inspection_id == actual_id).order_by(Evidence.created_at.asc())
+            )).scalars().all()
             return {
                 "id": ins.id, "inspection_code": ins.inspection_code, "inspector_id": ins.inspector_id,
                 "product_id": ins.product_id, "inspection_type": ins.inspection_type,
@@ -238,6 +241,34 @@ class NeonPostgresRepository(
                     "provenance": violation.provenance, "ai_explanation": violation.ai_explanation,
                     "inspector_comment": violation.inspector_comment,
                 } for violation in violations],
+                "evidence_items": [{
+                    "id": ev.id,
+                    "inspection_id": ev.inspection_id,
+                    "image_id": ev.image_id,
+                    "finding_id": ev.finding_id,
+                    "evidence_type": ev.evidence_type or "DECLARATION_CROP",
+                    "original_path": ev.original_path,
+                    "crop_path": ev.crop_path,
+                    "bbox": ev.bbox,
+                    "description": ev.description,
+                    "cloudinary_public_id": ev.cloudinary_public_id,
+                    "cloudinary_secure_url": ev.cloudinary_secure_url,
+                    "cloudinary_resource_type": ev.cloudinary_resource_type or "image",
+                    "cloudinary_format": ev.cloudinary_format,
+                    "thumbnail_url": (
+                        ev.cloudinary_secure_url.replace("/upload/", "/upload/c_thumb,w_300,h_300/")
+                        if ev.cloudinary_secure_url and "/upload/" in ev.cloudinary_secure_url
+                        else ev.cloudinary_secure_url
+                    ),
+                    "width": ev.width,
+                    "height": ev.height,
+                    "file_size_bytes": ev.file_size_bytes,
+                    "sha256": ev.sha256,
+                    "etag": ev.etag,
+                    "status": ev.status or "STORED",
+                    "created_by": ev.created_by,
+                    "created_at": ev.created_at.isoformat() if ev.created_at else None,
+                } for ev in evidence_records],
             }
 
     async def get_by_id(self, entity_id: str) -> Optional[Dict[str, Any]]:
@@ -368,6 +399,130 @@ class NeonPostgresRepository(
             await session.execute(stmt)
             await session.commit()
             return await self._get_inspection_by_id(inspection_id)
+
+    async def save_evidence_items(self, inspection_id: str, evidence_items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        async with await self._get_session() as session:
+            saved_results = []
+            for item in evidence_items:
+                ev_id = item.get("id") or str(uuid.uuid4())
+                stmt = select(Evidence).where(Evidence.id == ev_id)
+                res = await session.execute(stmt)
+                existing = res.scalar_one_or_none()
+
+                clean_data = {
+                    "id": ev_id,
+                    "inspection_id": item.get("inspection_id") or inspection_id,
+                    "image_id": item.get("image_id"),
+                    "finding_id": item.get("finding_id"),
+                    "evidence_type": item.get("evidence_type") or "DECLARATION_CROP",
+                    "original_path": item.get("original_path") or "",
+                    "crop_path": item.get("crop_path"),
+                    "bbox": item.get("bbox"),
+                    "description": item.get("description"),
+                    "cloudinary_public_id": item.get("cloudinary_public_id"),
+                    "cloudinary_secure_url": item.get("cloudinary_secure_url"),
+                    "cloudinary_resource_type": item.get("cloudinary_resource_type") or "image",
+                    "cloudinary_format": item.get("cloudinary_format"),
+                    "cloudinary_version": item.get("cloudinary_version"),
+                    "width": item.get("width"),
+                    "height": item.get("height"),
+                    "file_size_bytes": item.get("file_size_bytes"),
+                    "sha256": item.get("sha256"),
+                    "etag": item.get("etag"),
+                    "status": item.get("status") or "STORED",
+                    "created_by": item.get("created_by"),
+                }
+
+                if existing:
+                    # Update fields if not immutable
+                    for k, v in clean_data.items():
+                        if k != "id" and hasattr(existing, k):
+                            setattr(existing, k, v)
+                else:
+                    new_ev = Evidence(**clean_data)
+                    session.add(new_ev)
+
+                saved_results.append(clean_data)
+
+            await session.commit()
+            return saved_results
+
+    async def list_evidence(self, inspection_id: str) -> List[Dict[str, Any]]:
+        async with await self._get_session() as session:
+            stmt = select(Evidence).where(Evidence.inspection_id == inspection_id).order_by(Evidence.created_at.asc())
+            res = await session.execute(stmt)
+            records = res.scalars().all()
+            return [{
+                "id": ev.id,
+                "inspection_id": ev.inspection_id,
+                "image_id": ev.image_id,
+                "finding_id": ev.finding_id,
+                "evidence_type": ev.evidence_type or "DECLARATION_CROP",
+                "original_path": ev.original_path,
+                "crop_path": ev.crop_path,
+                "bbox": ev.bbox,
+                "description": ev.description,
+                "cloudinary_public_id": ev.cloudinary_public_id,
+                "cloudinary_secure_url": ev.cloudinary_secure_url,
+                "cloudinary_resource_type": ev.cloudinary_resource_type or "image",
+                "cloudinary_format": ev.cloudinary_format,
+                "thumbnail_url": (
+                    ev.cloudinary_secure_url.replace("/upload/", "/upload/c_thumb,w_300,h_300/")
+                    if ev.cloudinary_secure_url and "/upload/" in ev.cloudinary_secure_url
+                    else ev.cloudinary_secure_url
+                ),
+                "width": ev.width,
+                "height": ev.height,
+                "file_size_bytes": ev.file_size_bytes,
+                "sha256": ev.sha256,
+                "etag": ev.etag,
+                "status": ev.status or "STORED",
+                "created_by": ev.created_by,
+                "created_at": ev.created_at.isoformat() if ev.created_at else None,
+            } for ev in records]
+
+    async def get_evidence_by_id(self, evidence_id: str) -> Optional[Dict[str, Any]]:
+        async with await self._get_session() as session:
+            stmt = select(Evidence).where(Evidence.id == evidence_id)
+            res = await session.execute(stmt)
+            ev = res.scalar_one_or_none()
+            if not ev:
+                return None
+            return {
+                "id": ev.id,
+                "inspection_id": ev.inspection_id,
+                "image_id": ev.image_id,
+                "finding_id": ev.finding_id,
+                "evidence_type": ev.evidence_type or "DECLARATION_CROP",
+                "original_path": ev.original_path,
+                "crop_path": ev.crop_path,
+                "bbox": ev.bbox,
+                "description": ev.description,
+                "cloudinary_public_id": ev.cloudinary_public_id,
+                "cloudinary_secure_url": ev.cloudinary_secure_url,
+                "cloudinary_resource_type": ev.cloudinary_resource_type or "image",
+                "cloudinary_format": ev.cloudinary_format,
+                "thumbnail_url": (
+                    ev.cloudinary_secure_url.replace("/upload/", "/upload/c_thumb,w_300,h_300/")
+                    if ev.cloudinary_secure_url and "/upload/" in ev.cloudinary_secure_url
+                    else ev.cloudinary_secure_url
+                ),
+                "width": ev.width,
+                "height": ev.height,
+                "file_size_bytes": ev.file_size_bytes,
+                "sha256": ev.sha256,
+                "etag": ev.etag,
+                "status": ev.status or "STORED",
+                "created_by": ev.created_by,
+                "created_at": ev.created_at.isoformat() if ev.created_at else None,
+            }
+
+    async def update_evidence(self, evidence_id: str, updates: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        async with await self._get_session() as session:
+            stmt = update(Evidence).where(Evidence.id == evidence_id).values(**updates)
+            await session.execute(stmt)
+            await session.commit()
+            return await self.get_evidence_by_id(evidence_id)
 
     # --- IRuleRepository ---
     async def list_rules(self, category: Optional[str] = None, active_only: bool = True) -> List[Dict[str, Any]]:

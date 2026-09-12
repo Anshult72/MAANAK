@@ -845,6 +845,8 @@ class DemoInMemoryRepository(
             inspection_data["checks"] = []
         if "violations" not in inspection_data:
             inspection_data["violations"] = []
+        if "evidence_items" not in inspection_data:
+            inspection_data["evidence_items"] = []
         self.inspections[ins_id] = copy.deepcopy(inspection_data)
         return copy.deepcopy(self.inspections[ins_id])
 
@@ -939,6 +941,57 @@ class DemoInMemoryRepository(
         ins["finalized_at"] = get_now_iso()
         ins["rule_snapshot"] = copy.deepcopy(snapshot_data)
         return copy.deepcopy(ins)
+
+    async def save_evidence_items(self, inspection_id: str, evidence_items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        ins = self.inspections.get(inspection_id)
+        if not ins:
+            raise ValueError(f"Inspection {inspection_id} not found")
+        if "evidence_items" not in ins:
+            ins["evidence_items"] = []
+
+        saved = []
+        for item in evidence_items:
+            ev_id = item.get("id") or f"ev-{uuid.uuid4().hex[:8]}"
+            clean = copy.deepcopy(item)
+            clean["id"] = ev_id
+            clean["inspection_id"] = inspection_id
+            if "created_at" not in clean:
+                clean["created_at"] = get_now_iso()
+            if not clean.get("thumbnail_url") and clean.get("cloudinary_secure_url"):
+                sec = clean["cloudinary_secure_url"]
+                clean["thumbnail_url"] = sec.replace("/upload/", "/upload/c_thumb,w_300,h_300/") if "/upload/" in sec else sec
+
+            # Find existing or append
+            idx = next((i for i, e in enumerate(ins["evidence_items"]) if e["id"] == ev_id), None)
+            if idx is not None:
+                ins["evidence_items"][idx].update(clean)
+                saved.append(copy.deepcopy(ins["evidence_items"][idx]))
+            else:
+                ins["evidence_items"].append(clean)
+                saved.append(copy.deepcopy(clean))
+
+        return saved
+
+    async def list_evidence(self, inspection_id: str) -> List[Dict[str, Any]]:
+        ins = self.inspections.get(inspection_id)
+        if not ins:
+            return []
+        return copy.deepcopy(ins.get("evidence_items", []))
+
+    async def get_evidence_by_id(self, evidence_id: str) -> Optional[Dict[str, Any]]:
+        for ins in self.inspections.values():
+            for ev in ins.get("evidence_items", []):
+                if ev.get("id") == evidence_id:
+                    return copy.deepcopy(ev)
+        return None
+
+    async def update_evidence(self, evidence_id: str, updates: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        for ins in self.inspections.values():
+            for ev in ins.get("evidence_items", []):
+                if ev.get("id") == evidence_id:
+                    ev.update(updates)
+                    return copy.deepcopy(ev)
+        return None
 
     # --- IRuleRepository ---
     async def list_rules(self, category: Optional[str] = None, active_only: bool = True) -> List[Dict[str, Any]]:

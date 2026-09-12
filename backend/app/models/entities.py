@@ -294,11 +294,26 @@ class Evidence(Base):
     image_id = Column(String(36), ForeignKey("inspection_images.id"), nullable=True)
     finding_id = Column(String(36), nullable=True)
     
+    evidence_type = Column(String(50), nullable=False, default="DECLARATION_CROP")  # OCR_CROP, DECLARATION_CROP, MRP_CROP, FONT_SIZE_CROP, READABILITY_CROP, PLACEMENT_CROP, ANNOTATED_OVERLAY, VIOLATION_EVIDENCE, REVIEW_EVIDENCE, MANUAL_EVIDENCE
     original_path = Column(String(500), nullable=False)
     crop_path = Column(String(500), nullable=True)
     bbox = Column(JSON, nullable=True)
     description = Column(Text, nullable=True)
     
+    # Cloudinary persistent cloud storage fields
+    cloudinary_public_id = Column(String(255), nullable=True)
+    cloudinary_secure_url = Column(String(1000), nullable=True)
+    cloudinary_resource_type = Column(String(50), nullable=True)
+    cloudinary_format = Column(String(20), nullable=True)
+    cloudinary_version = Column(String(50), nullable=True)
+    width = Column(Integer, nullable=True)
+    height = Column(Integer, nullable=True)
+    file_size_bytes = Column(Integer, nullable=True)
+    sha256 = Column(String(64), nullable=True, index=True)
+    etag = Column(String(100), nullable=True)
+    status = Column(String(50), nullable=False, default="STORED")  # STORED, UPLOAD_PENDING, UPLOAD_FAILED, LOCAL_ONLY
+    created_by = Column(String(100), nullable=True)
+
     created_at = Column(DateTime(timezone=True), default=get_utc_now)
 
     inspection = relationship("Inspection", back_populates="evidence_items")

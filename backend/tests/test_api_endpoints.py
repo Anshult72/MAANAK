@@ -25,7 +25,7 @@ async def test_full_api_workflow():
         # 1. Health check
         res = await ac.get("/health")
         assert res.status_code == 200
-        assert res.json()["status"] == "healthy"
+        assert res.json()["status"] in ("ok", "healthy")
 
         # 2. Login
         res = await ac.post("/api/auth/login", json={

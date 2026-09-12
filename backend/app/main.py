@@ -83,7 +83,11 @@ async def health_check():
         "status": "ok",
         "service": "LM-TRACE Legal Metrology Platform",
         "mode": "DEMO_DATA_MODE" if settings.is_demo_mode else "NEON_POSTGRESQL",
-        "version": "1.0.0"
+        "version": "1.0.0",
+        "cloudinary": {
+            "enabled": settings.CLOUDINARY_ENABLED,
+            "configured": settings.cloudinary_configured,
+        }
     }
 
 @app.get("/ready")
