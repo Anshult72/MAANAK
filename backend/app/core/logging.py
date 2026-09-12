@@ -35,7 +35,7 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
             duration_ms = round((time.monotonic() - start) * 1000, 1)
             status_code = response.status_code if response else 500
             logger.info(
-                "%s %s → %s (%sms)",
+                "%s %s -> %s (%sms)",
                 request.method,
                 request.url.path,
                 status_code,
